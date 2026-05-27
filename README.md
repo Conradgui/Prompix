@@ -4,7 +4,7 @@
 # 🎨 Prompix - Visual Prompt Intelligence Workspace
 ### 极具诗意与自然呼吸感的多模态 AI 提示词反推与精炼创作工作台
 
-[English Version](./next-web/README.md) | [在线演示 (Demo)](#快速上手) | [开发路线图 (Roadmap)](#-产品发展路线图-roadmap--milestones)
+[English Version](./README_EN.md) | [在线演示 (Demo)](#-快速上手-quick-start) | [开发路线图 (Roadmap)](#-产品发展路线图-roadmap--milestones)
 
 </div>
 
@@ -127,10 +127,6 @@ graph TD
 
 ### 📂 项目目录结构
 ```bash
-├── docs/                      # 核心产品设计与平台 API 开发文档
-│   ├── platform-api-spec.md   # 平台 managed mode API 规范 (分析/聊天/解释术语)
-│   ├── deployment-checklist.md# Vercel 自动化部署及环境变量说明
-│   └── provider-integration-guide.md # 外部模型服务商集成开发文档
 ├── scripts/                   # 一键化开发辅助与打包脚本
 │   ├── launch-prompix.mjs     # 一键启动脚本：自动化拉取端口、检查编译、秒级开启本地服务
 │   └── stop-prompix.mjs       # 一键优雅退出与后台端口进程清理脚本

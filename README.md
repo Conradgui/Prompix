@@ -6,8 +6,6 @@
 
 [English Version](./next-web/README.md) | [在线演示 (Demo)](#快速上手) | [开发路线图 (Roadmap)](#-产品发展路线图-roadmap--milestones)
 
-<img width="1200" alt="Prompix Dashboard Preview" src="public/screenshots/home.png" />
-
 </div>
 
 ---
@@ -67,8 +65,6 @@ graph TD
     *   **为什么不采用高饱和度的“科技感蓝紫渐变”？** 因为创作者在工作台前需要极度专注，高饱和度会造成视觉疲劳。而柔和的莫兰迪配色与模拟纸张的颗粒感，能营造出一种“实体画册”的物理触感与安静的创作环境。
     *   **页面高度控制决策**：坚持 `100vh` Viewport 零滚动设计，所有面板在一屏内收纳。频繁的垂直滚动会打断创作者在“微调 - 复制 - 对比”这一闭环流程中的心流体验。
 
-<img width="1200" alt="Analysis Workspace" src="public/screenshots/analysis.png" />
-
 ### 0️⃣ 2. 0ms 语种瞬切设计 (Scheme A - Dual Language Output)
 *   **技术实现**：多模态首轮分析时，通过特定的 System Prompt 强制模型以结构化 JSON 同时返回英文提示词卡片（`original`）与中文对照（`translated`）。
 *   **💡 产品决策思维 (PM Rationale)**：
@@ -90,8 +86,6 @@ graph TD
     *   在传统的通用聊天机器人中，微调会导致整个提示词被大范围重写。对于 AI 创作者来说，好不容易通过随机种子锁定的构图和风格会随着一次微调瞬间崩溃。
     *   **维度级“锁存 (Locking)”** 是我们对“AI 随机性”与“人类确定性”的一种平衡解法。通过锁定未被改动的原子卡片，保留了创作资产的稳定性。
 
-<img width="1200" alt="Chat Workspace" src="public/screenshots/chat_inspiration.png" />
-
 ### 📦 5. 存储分层与大图解耦策略 (Dual-Layer Decoupled Storage Architecture)
 *   **技术实现**：
     1.  **LocalStorage**（5MB 限制）：仅存放非常小且高频的文本 Metadata 历史索引列表。
@@ -101,8 +95,6 @@ graph TD
     *   **为什么不在一开始就图文合一全部塞进本地？** 
         普通的 Base64 图片一张就高达 1~2MB。如果图文合一存放在 LocalStorage，用户上传 3 张图就会发生浏览器崩溃；即使放 IndexedDB，如果列表渲染时一次性从数据库中反序列化数十兆的图片数据，整个前端也会发生不可接受的顿卡。
         **“数据分层、按需提取”**是支持“纯本地运行、隐私安全第一”产品的核心工程规范，这也是该应用能做到百万级列表秒开的技术保障。
-
-<img width="1200" alt="History Library" src="public/screenshots/library.png" />
 
 ### 🚀 6. 服务端多 Provider 动态路由网关 (Stateless Gateway & SSE Streams)
 *   **技术实现**：使用 Vercel AI SDK 构建了无状态多云路由网关。支持标准 OpenAI、Anthropic Claude、硅基流动 (SiliconFlow)、MiniMax 等主流服务商，支持 SSE (Server-Sent Events) 真流式转发，首字响应时间（TTFT）低至百毫秒级。
@@ -116,8 +108,6 @@ graph TD
 *   **💡 产品决策思维 (PM Rationale)**：
     *   创作者不是简单的搬运工。Prompix 相比其他工具的最大壁垒在于，它能帮助创作者“学习”。
     *   通过沉淀的 **Wordbank（视觉术语库）**，创作者能看到大模型眼睛里的艺术名词，建立属于自己的“创作词典”，这是一种极佳的**产品留存机制与粘性抓手**。
-
-<img width="1200" alt="Wordbank View" src="public/screenshots/wordbank.png" />
 
 ---
 

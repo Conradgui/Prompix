@@ -33,7 +33,7 @@ const buildDemoAnalysis = (settings: UserSettings): AnalysisResult => {
   return {
     description: isChinese(settings.systemLanguage)
       ? '这是 Demo 模式下的示例解析结果。你可以直接体验完整流程（分析、聊天、历史、导出），切换到“自定义API”即可获得真实模型输出。'
-      : 'This is a demo analysis result for interview-ready flow. Switch to API mode for real model output.',
+      : 'This is a demo analysis result for offline preview. Switch to API mode for real model output.',
     structuredPrompts: {
       subject: buildSegment(settings,
         'young designer, focused expression, holding a sketchbook, half-body portrait, center framing',

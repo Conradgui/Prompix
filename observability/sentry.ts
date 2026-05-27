@@ -1,4 +1,4 @@
-// Observability disabled for Prompix (interview/demo mode).
+// Observability configuration for Prompix.
 // Keep no-op APIs to avoid touching business imports.
 
 export const initSentry = () => {

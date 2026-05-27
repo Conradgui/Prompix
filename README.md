@@ -58,11 +58,12 @@ graph TD
 
 在 Prompix 的开发过程中，我们始终遵循**“体验驱动、成本敏感、工程严谨”**的 AI 产品设计哲学。以下是项目的核心亮点，以及我们做出相关技术方案决策背后的**产品思维 (Product Rationale)**。
 
-### 🌾 1. 莫兰迪自然呼吸感设计 (Poetic Morandi Theme & Smooth Physics)
-*   **设计细节**：温润燕麦色（`#FBF9F6`）与 Obsidian 暗夜黑双色主题。界面融合了极轻的 CSS SVG 实体纸张颗粒噪点质感，并基于 Framer Motion 微动效（物理阻尼参数 `stiffness: 100, damping: 20`）构建，彻底摆脱了传统“冷冰冰的 AI 工具感”。
+### 🤖 1. 智能多模态降级与 Fallback 路由引擎 (Intelligent Model Fallback Engine)
+*   **技术实现**：在服务端 `OpenAIServerProvider` 与客户端的 `openai.ts` / `siliconflow.ts` 适配器中构建了智能路由映射。当检测到当前任务需要图片多模态输入，但用户配置的是不支持 Vision 的纯文本模型（例如 `deepseek-ai/DeepSeek-V3`、`o1-mini`、`gpt-3.5-turbo`）时，系统会在请求发送前，自动将其映射至对应的多模态模型（如 `Qwen/Qwen2.5-VL-72B-Instruct` 或 `gpt-4o-mini`），而对于后续的纯文本操作（如术语追问、翻译）则原样保留纯文本模型以保障高推理能力。
 *   **💡 产品决策思维 (PM Rationale)**：
-    *   **为什么不采用高饱和度的“科技感蓝紫渐变”？** 因为创作者在工作台前需要极度专注，高饱和度会造成视觉疲劳。而柔和的莫兰迪配色与模拟纸张的颗粒感，能营造出一种“实体画册”的物理触感与安静的创作环境。
-    *   **页面高度控制决策**：坚持 `100vh` Viewport 零滚动设计，所有面板在一屏内收纳。频繁的垂直滚动会打断创作者在“微调 - 复制 - 对比”这一闭环流程中的心流体验。
+    *   **为什么不直接在前端报错拦截，让用户自己去改设置？**
+        用户并非技术专家，强行抛出 `No endpoints found that support image input` 等技术黑话会引发严重的焦虑与流失率。
+        产品应当具备 **“渐进式自适应 (Progressive Resilience)”** 的容错能力，在系统底层通过策略引擎为用户做降级备选，从而将产品的**“不可用状态”降低为零**。
 
 ### 0️⃣ 2. 0ms 语种瞬切设计 (Scheme A - Dual Language Output)
 *   **技术实现**：多模态首轮分析时，通过特定的 System Prompt 强制模型以结构化 JSON 同时返回英文提示词卡片（`original`）与中文对照（`translated`）。
@@ -107,6 +108,12 @@ graph TD
 *   **💡 产品决策思维 (PM Rationale)**：
     *   创作者不是简单的搬运工。Prompix 相比其他工具的最大壁垒在于，它能帮助创作者“学习”。
     *   通过沉淀的 **Wordbank（视觉术语库）**，创作者能看到大模型眼睛里的艺术名词，建立属于自己的“创作词典”，这是一种极佳的**产品留存机制与粘性抓手**。
+
+### 🌾 8. 莫兰迪自然呼吸感设计 (Poetic Morandi Theme & Smooth Physics)
+*   **设计细节**：温润燕麦色（`#FBF9F6`）与 Obsidian 暗夜黑双色主题。界面融合了极轻的 CSS SVG 实体纸张颗粒噪点质感，并基于 Framer Motion 微动效（物理阻尼参数 `stiffness: 100, damping: 20`）构建，彻底摆脱了传统“冷冰冰的 AI 工具感”。
+*   **💡 产品决策思维 (PM Rationale)**：
+    *   **为什么不采用高饱和度的“科技感蓝紫渐变”？** 因为创作者在工作台前需要极度专注，高饱和度会造成视觉疲劳。而柔和的莫兰迪配色与模拟纸张的颗粒感，能营造出一种“实体画册”的物理触感与安静的创作环境。
+    *   **页面高度控制决策**：坚持 `100vh` Viewport 零滚动设计，所有面板在一屏内收纳。频繁的垂直滚动会打断创作者在“微调 - 复制 - 对比”这一闭环流程中的心流体验。
 
 ---
 
@@ -206,5 +213,5 @@ npm run start
 All visual and prompt reversing technologies inside are protected under developer-first privacy laws.
 
 ---
-*设计以温润致敬创作者，功能以精准赋能灵感。*  
+*设计以温润致敬创作，功能以精准赋能灵感。*  
 *如果您觉得 Prompix 帮到了您，请为本项目点一个 ⭐ Star！*

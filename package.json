@@ -1,0 +1,50 @@
+{
+  "name": "prompix-v9-issue",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "start": "npm run prompix:open",
+    "start:web": "npm run prompix:open",
+    "start:dev": "npm run prompix:open:dev",
+    "legacy:web": "node ./scripts/start.mjs --target=web",
+    "start:weapp": "node ./scripts/start.mjs --target=weapp",
+    "build:weapp": "node ./scripts/start.mjs --target=weapp --mode=build",
+    "next:web:dev": "npm --prefix ./next-web run dev",
+    "next:web:build": "npm --prefix ./next-web run build",
+    "next:web:test": "npm --prefix ./next-web run test",
+    "next:web:test:e2e": "npm --prefix ./next-web run test:e2e",
+    "next:web:test:e2e:public-demo": "npm --prefix ./next-web run test:e2e:public-demo",
+    "prompix:open": "node ./scripts/launch-prompix.mjs",
+    "prompix:open:dev": "node ./scripts/launch-prompix.mjs --mode=dev",
+    "prompix:stop": "node ./scripts/stop-prompix.mjs",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@google/genai": "^1.30.0",
+    "html2canvas": "^1.4.1",
+    "idb-keyval": "^6.2.2",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.0.0",
+    "@playwright/test": "^1.54.2",
+    "autoprefixer": "^10.4.23",
+    "jsdom": "^26.1.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.19",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0",
+    "vitest": "^3.2.4"
+  }
+}

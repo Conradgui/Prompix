@@ -1,4 +1,4 @@
-# Prompix Next Web (Antigravity)
+# Prompix Next Web 
 
 Prompix 的 Next.js App Router 版本，目标是“公网链接点开即可真实使用”。
 

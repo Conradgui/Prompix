@@ -4,7 +4,7 @@
 # 🎨 Prompix - Visual Prompt Intelligence Workspace
 ### 极具诗意与自然呼吸感的多模态 AI 提示词反推与精炼创作工作台
 
-[English Version](./README_EN.md) | [在线演示 (Demo)](#-快速上手-quick-start) | [开发路线图 (Roadmap)](#-产品发展路线图-roadmap--milestones)
+[English Version](./README_EN.md) 
 
 </div>
 

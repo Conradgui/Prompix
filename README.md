@@ -112,16 +112,12 @@ graph TD
 
 ## 🛠️ 技术栈与工程文件结构 (Tech Stack & Files)
 
-### 💻 前端技术栈 (Frontend)
 *   **核心框架**：Next.js 15.3 (App Router) + React 19.1
 *   **状态管理**：React Context + `useReducer`（原子状态合并，防止异步状态延迟引起的渲染冲突）
 *   **动效渲染**：Framer Motion 11
 *   **样式方案**：Tailwind CSS 4.1 + CSS SVG 纸张噪点纹理
 *   **数据库**：IndexedDB + `idb-keyval` (异步大图隔离存储)
 
-### ⚙️ 后端技术栈 (Backend)
-*   **核心框架**：Next.js Route Handlers (无状态 API 路由)
-*   **AI SDK**：Vercel AI SDK (`@ai-sdk/openai`, `streamObject`, `streamText`)
 
 ### 📂 项目目录结构
 ```bash

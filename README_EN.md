@@ -57,13 +57,7 @@ graph TD
 
 Throughout the development of Prompix, we align with the product philosophy of **"experience-driven, cost-sensitive, and engineering-disciplined."** Here is the reasoning behind our core product decisions:
 
-### 🌾 1. Poetic Morandi Theme & Smooth Physics
-*   **Design Details**: Warm Morandi oatmeal (`#FBF9F6`) and Obsidian black dual-theme. The UI overlays a subtle CSS SVG grain texture reminiscent of fibrous paper and utilizes custom Framer Motion physics (`stiffness: 100, damping: 20`) to eliminate cold, generic tool designs.
-*   **💡 PM Rationale**:
-    *   **Why not use high-saturation "tech gradients"?** Creators require deep focus; high-saturation layouts cause fatigue. Morandi tones and paper grain mimic physical art journals, providing a calming and tactile workflow.
-    *   **Single Viewport Decision**: Strict adherence to a `100vh` zero-scroll grid. Keeping all panels on one screen prevents vertical scrolling from interrupting the "refine-copy-compare" loop.
-
-### 0️⃣ 2. 0ms Bilingual Switch (Scheme A - Dual Language Output)
+### 0️⃣ 1. 0ms Bilingual Switch (Scheme A - Dual Language Output)
 *   **Implementation**: During the first multi-modal analysis, the model is prompted via a structured Zod schema to output both English (`original`) and Chinese (`translated`) fields simultaneously.
 *   **💡 PM Rationale**:
     *   **Why not translate on-demand via a translation API?**
@@ -71,30 +65,36 @@ Throughout the development of Prompix, we align with the product philosophy of *
         2.  **Network Delay**: A 2-3s delay breaks the user's flow.
         3.  **Model Hallucination**: Secondary calls risk formatting errors. A **single bilingual output enables 0ms toggle latency** while **reducing multi-modal inference costs by over 90%**.
 
-### 🤖 3. Intelligent Model Fallback Engine
+### 🤖 2. Intelligent Model Fallback Engine
 *   **Implementation**: If a user configures a text-only model (e.g., `deepseek-ai/DeepSeek-V3`, `gpt-3.5-turbo`, `o1-mini`) for an image analysis task, the routing layer automatically redirects the request to a vision-capable sibling (e.g., `Qwen/Qwen2.5-VL-72B-Instruct` or `gpt-4o-mini`) on the fly, while preserving the text-only model for follow-up text operations.
 *   **💡 PM Rationale**:
     *   **Why not block the user with an API error?** Users are not technical experts. Explaining `No endpoints support image input` drives bounce rates. Product designs should exhibit **Progressive Resilience**—handling fallback behind the scenes to keep error rates at zero.
 
-### 🔒 4. Non-Destructive Dimension Card Locking
+### 🔒 3. Non-Destructive Dimension Card Locking
 *   **Implementation**: Prompix breaks visual prompts into 6 dimensions (Subject, Environment, Composition, Lighting, Mood, Style). In chat-refinement mode, cards that are not mentioned in the query remain **100% character-identical**.
 *   **💡 PM Rationale**:
     *   Generic chat interfaces rewrite the entire prompt. For artists, an accidental rewrite destroys compositions locked by random seeds. Card-level locking balances AI randomness with human control.
 
-### 📦 5. Decoupled Dual-Layer Storage
+### 📦 4. Decoupled Dual-Layer Storage
 *   **Implementation**: LocalStorage (5MB cap) is used exclusively for lightweight text metadata indexes. Large Base64 image files are stored asynchronously in IndexedDB. Canvas downsampling compresses images into ~5KB thumbnails on upload for instant library rendering.
 *   **💡 PM Rationale**:
     *   Base64 files average 1-2MB. Storing them in LocalStorage crashes the browser in 3 uploads. Deserializing megabytes of images on library rendering lags the UI. Splitting database layers is critical to keeping the application smooth and local-first.
 
-### 🚀 6. Multi-Provider Stateless Gateway (SSE Streams)
+### 🚀 5. Multi-Provider Stateless Gateway (SSE Streams)
 *   **Implementation**: Stateless routing supporting OpenAI, Claude, Gemini, SiliconFlow, and MiniMax via Server-Sent Events (SSE) with time-to-first-token (TTFT) under a few hundred milliseconds.
 *   **💡 PM Rationale**:
     *   **Developer Mode vs. Managed Mode**: Tech-savvy creators want to use their own SiliconFlow or OpenAI keys. Beginners want to start immediately without knowing what an API key is. Supporting both models captures both advanced power-users and mainstream audiences.
 
-### 🔍 7. Wordbank Glossary Mining
+### 🔍 6. Wordbank Glossary Mining
 *   **Implementation**: Auto-extracts advanced visual terms (e.g., "Cinematic Lighting", "Volumetric Dust") into a persistent glossary. Creators can query definitions and applications locally.
 *   **💡 PM Rationale**:
     *   Prompix goes beyond prompt reversal—it acts as an educational tool. Mined term definitions build a personalized visual dictionary, enhancing user retention.
+ 
+### 🌾 7. Poetic Morandi Theme & Smooth Physics
+*   **Design Details**: Warm Morandi oatmeal (`#FBF9F6`) and Obsidian black dual-theme. The UI overlays a subtle CSS SVG grain texture reminiscent of fibrous paper and utilizes custom Framer Motion physics (`stiffness: 100, damping: 20`) to eliminate cold, generic tool designs.
+*   **💡 PM Rationale**:
+    *   **Why not use high-saturation "tech gradients"?** Creators require deep focus; high-saturation layouts cause fatigue. Morandi tones and paper grain mimic physical art journals, providing a calming and tactile workflow.
+    *   **Single Viewport Decision**: Strict adherence to a `100vh` zero-scroll grid. Keeping all panels on one screen prevents vertical scrolling from interrupting the "refine-copy-compare" loop.
 
 ---
 

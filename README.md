@@ -45,7 +45,7 @@ graph TD
     end
 
     subgraph render ["客户端渲染与交互 (Client Render & Interaction)"]
-        GW -->|0ms 语言瞬切 0ms Language Toggle| View[双语工作台 UI (Bilingual Workspace UI)]
+        GW -->|0ms 语言瞬切 0ms Language Toggle| View["双语工作台 UI (Bilingual Workspace UI)"]
         View -->|输入聊天指令 Chat Command| Chat[非破坏性卡片微调 Non-Destructive Refinement]
         Chat -->|锁定维度 100% 字符一致| View
         View -->|提取艺术术语 Visual Glossary| Bank[术语库挖掘与追问 Wordbank Mining & Term Explanation]

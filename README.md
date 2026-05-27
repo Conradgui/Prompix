@@ -122,7 +122,6 @@ graph TD
 ### ⚙️ 后端技术栈 (Backend)
 *   **核心框架**：Next.js Route Handlers (无状态 API 路由)
 *   **AI SDK**：Vercel AI SDK (`@ai-sdk/openai`, `streamObject`, `streamText`)
-*   **模型支持**：Gemini 2.5, GPT-4o, Claude 3.5 Sonnet, SiliconFlow Models, MiniMax
 
 ### 📂 项目目录结构
 ```bash
@@ -142,7 +141,7 @@ graph TD
 │   └── tests/                 # 测试矩阵
 │       ├── unit/              # 25 个 Vitest 单元测试 (缓存隔离、模型降级、存储层等)
 │       └── e2e/               # 6 个 Playwright 自动化端到端测试
-└── miniapp/                   # WeChat 微信小程序端移植版 (实验性，主要结构已闭环)
+└── miniapp/                   # WeChat 微信小程序端移植版 (实验性)
 ```
 
 ---
@@ -193,16 +192,8 @@ npm install
 ```
 
 ### 2. 环境变量配置
-在 `next-web/.env.local` 文件中填入基础配置（本地开发使用内置 Demo 提供商，你可以不填 API Key 直接使用）：
-```bash
-NEXT_PUBLIC_RUNTIME_POLICY=local
+在 `next-web/.env.local` 文件中填入基础配置
 
-# 平台直连 minimax 备用配置 (非必填，本地自带模拟 demo 数据)
-MINIMAX_API_KEY=your_key_here
-MINIMAX_GROUP_ID=your_group_id
-MINIMAX_MODEL=MiniMax-M2.5
-MINIMAX_BASE_URL=https://api.minimaxi.com/v1/chat/completions
-```
 
 ### 3. 本地一键启动服务
 ```bash

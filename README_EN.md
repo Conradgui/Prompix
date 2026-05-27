@@ -1,10 +1,9 @@
-<div align="center">
-<img width="128" alt="Prompix Logo" src="public/prompix-icon.svg" onerror="this.src='next-web/public/next.svg'" />
+
 
 # 🎨 Prompix - Visual Prompt Intelligence Workspace
 ### A Poetic & Ambient Multi-Modal AI Visual Prompt Engineering & Refinement Studio
 
-[中文版本](./README.md) | [Quick Start](#-quick-start) | [Roadmap & Milestones](#-roadmap--milestones)
+[中文版本](./README.md)
 
 </div>
 
@@ -12,7 +11,7 @@
 
 ## 💡 Product Positioning & Pain Point Analysis
 
-In the era of AI visual creation driven by Midjourney, Stable Diffusion, and DALL-E, the core pain point for creators is no longer **"how to generate an image,"** but rather **"how to precisely control and curate their visual language system."**
+In the era of AI visual creation driven by Midjourney, Stable Diffusion, and DALL-E, the core pain point for creators is no longer "how to generate an image," but rather "how to precisely control and curate their visual language system."
 
 Traditional prompt-reversing tools (like CLIP or simple LLM Q&A) present three critical limitations:
 1. **Ephemeral Tools, No Asset Retention**: Simple "upload -> text generation" flows fail to save history, making it impossible for creators to preserve inspirations as structured creative assets.
@@ -167,16 +166,8 @@ npm install
 ```
 
 ### 2. Configure Environment
-Create `next-web/.env.local` (Local mode has built-in mock demo data, so keys are optional):
-```bash
-NEXT_PUBLIC_RUNTIME_POLICY=local
+Create `next-web/.env.local` 
 
-# Managed Minimax Configuration (Optional)
-MINIMAX_API_KEY=your_key_here
-MINIMAX_GROUP_ID=your_group_id
-MINIMAX_MODEL=MiniMax-M2.5
-MINIMAX_BASE_URL=https://api.minimaxi.com/v1/chat/completions
-```
 
 ### 3. Launch Dev Server
 ```bash

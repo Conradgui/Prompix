@@ -100,7 +100,6 @@ Throughout the development of Prompix, we align with the product philosophy of *
 
 ## 🛠️ Tech Stack & Directory Structure
 
-### 💻 Frontend
 *   **Core**: Next.js 15.3 (App Router) + React 19.1
 *   **State**: Context API + `useReducer` (prevents rendering conflicts from async delays)
 *   **Motion**: Framer Motion 11

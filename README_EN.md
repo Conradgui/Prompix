@@ -58,7 +58,7 @@ graph TD
 Throughout the development of Prompix, we align with the product philosophy of **"experience-driven, cost-sensitive, and engineering-disciplined."** Here is the reasoning behind our core product decisions:
 
 ### 🤖 1. Intelligent Model Fallback Engine
-*   **Implementation**: If a user configures a text-only model (e.g., `deepseek-ai/DeepSeek-V3`, `gpt-3.5-turbo`, `o1-mini`) for an image analysis task, the routing layer automatically redirects the request to a vision-capable sibling (e.g., `Qwen/Qwen2.5-VL-72B-Instruct` or `gpt-4o-mini`) on the fly, while preserving the text-only model for follow-up text operations.
+*   **Implementation**: If a user configures a text-only model (e.g., `deepseek-ai/DeepSeek-V3`, `gpt-3.5-turbo`, `o1-mini`) for an image analysis task, the routing layer automatically redirects the request to a vision-capable sibling on the fly, while preserving the text-only model for follow-up text operations.
 *   **💡 PM Rationale**:
     *   **Why not block the user with an API error?** Users are not technical experts. Explaining `No endpoints support image input` drives bounce rates. Product designs should exhibit **Progressive Resilience**—handling fallback behind the scenes to keep error rates at zero.
 

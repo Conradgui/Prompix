@@ -57,18 +57,18 @@ graph TD
 
 Throughout the development of Prompix, we align with the product philosophy of **"experience-driven, cost-sensitive, and engineering-disciplined."** Here is the reasoning behind our core product decisions:
 
-### 0️⃣ 1. 0ms Bilingual Switch (Scheme A - Dual Language Output)
+### 🤖 1. Intelligent Model Fallback Engine
+*   **Implementation**: If a user configures a text-only model (e.g., `deepseek-ai/DeepSeek-V3`, `gpt-3.5-turbo`, `o1-mini`) for an image analysis task, the routing layer automatically redirects the request to a vision-capable sibling (e.g., `Qwen/Qwen2.5-VL-72B-Instruct` or `gpt-4o-mini`) on the fly, while preserving the text-only model for follow-up text operations.
+*   **💡 PM Rationale**:
+    *   **Why not block the user with an API error?** Users are not technical experts. Explaining `No endpoints support image input` drives bounce rates. Product designs should exhibit **Progressive Resilience**—handling fallback behind the scenes to keep error rates at zero.
+
+### 0️⃣ 2. 0ms Bilingual Switch (Scheme A - Dual Language Output)
 *   **Implementation**: During the first multi-modal analysis, the model is prompted via a structured Zod schema to output both English (`original`) and Chinese (`translated`) fields simultaneously.
 *   **💡 PM Rationale**:
     *   **Why not translate on-demand via a translation API?**
         1.  **Repeated Token Costs**: On-demand translation creates recurring costs on every toggle.
         2.  **Network Delay**: A 2-3s delay breaks the user's flow.
         3.  **Model Hallucination**: Secondary calls risk formatting errors. A **single bilingual output enables 0ms toggle latency** while **reducing multi-modal inference costs by over 90%**.
-
-### 🤖 2. Intelligent Model Fallback Engine
-*   **Implementation**: If a user configures a text-only model (e.g., `deepseek-ai/DeepSeek-V3`, `gpt-3.5-turbo`, `o1-mini`) for an image analysis task, the routing layer automatically redirects the request to a vision-capable sibling (e.g., `Qwen/Qwen2.5-VL-72B-Instruct` or `gpt-4o-mini`) on the fly, while preserving the text-only model for follow-up text operations.
-*   **💡 PM Rationale**:
-    *   **Why not block the user with an API error?** Users are not technical experts. Explaining `No endpoints support image input` drives bounce rates. Product designs should exhibit **Progressive Resilience**—handling fallback behind the scenes to keep error rates at zero.
 
 ### 🔒 3. Non-Destructive Dimension Card Locking
 *   **Implementation**: Prompix breaks visual prompts into 6 dimensions (Subject, Environment, Composition, Lighting, Mood, Style). In chat-refinement mode, cards that are not mentioned in the query remain **100% character-identical**.

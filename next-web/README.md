@@ -17,13 +17,11 @@ npm run dev
 
 ## 核心环境变量
 
-可复制 [.env.example](/Users/conrad/Desktop/Codex vibe coding/Prompix/next-web/.env.example) 为 `.env.local` 后填写：
+可复制 [.env.example](file:///Users/conrad/Desktop/archive/AI学习/Codex vibe coding/Prompix/next-web/.env.example) 为 `.env.local` 后填写：
 
 - `NEXT_PUBLIC_RUNTIME_POLICY=local | public-live | public-demo`
-- `MINIMAX_API_KEY`（平台直连必填）
-- `MINIMAX_GROUP_ID`（平台直连必填）
-- `MINIMAX_MODEL`（默认 `MiniMax-M2.5`）
-- `MINIMAX_BASE_URL`（默认 `https://api.minimaxi.com/v1/chat/completions`）
+- `GEMINI_API_KEY`（官方直连 / 降本托管必填）
+- `GEMINI_MODEL`（默认 `gemini-2.5-flash`）
 - `UPSTASH_REDIS_REST_URL`、`UPSTASH_REDIS_REST_TOKEN`（可选，限流）
 - `PROMPIX_DEV_MODE_PASSWORD`（公网开发者调优口令，`local` 可不填）
 

@@ -22,6 +22,7 @@ export interface ApiConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
+  textModel?: string;
   groupId: string;
   provider?: string;
 }

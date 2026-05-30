@@ -5,7 +5,7 @@ import Header from '@/components/layout/Header';
 import ParticleBackground from '@/components/ui/ParticleBackground';
 
 export const metadata: Metadata = {
-  title: 'Prompix Antigravity',
+  title: 'Prompix',
   description: '从视觉到提示词的 AI 工作台',
 };
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/server/rate-limit';
-import { regenerateWithMiniMax } from '@/lib/server/managed-ops';
+import { regenerateWithProvider } from '@/lib/server/managed-ops';
 import { canUseCustomApiInRequest, getApiModeBlockedMessage, resolveRequestRuntimeMode } from '@/lib/server/runtime-policy';
 
 const ALLOWED_DIMENSIONS = new Set(['subject', 'environment', 'composition', 'lighting', 'mood', 'style']);
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '缺少必要参数或维度无效。' }, { status: 400 });
     }
 
-    const result = await regenerateWithMiniMax(image, dimension as any, settings, apiConfig);
+    const result = await regenerateWithProvider(image, dimension as any, settings, apiConfig);
     return NextResponse.json(result);
   } catch (error: any) {
     const message = error?.message || '刷新失败，请稍后重试。';

@@ -4,10 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
 import Surface from '@/components/ui/Surface';
 import PrimaryButton from '@/components/ui/PrimaryButton';
 import { useAppState } from '@/lib/state/app-state';
-import { DimensionKey, PromptOutputLanguage, PromptSegment, ChatMessage } from '@/lib/types';
+import { DimensionKey, PromptOutputLanguage, PromptSegment, ChatMessage, AnalysisResult } from '@/lib/types';
 import { copyToClipboard } from '@/lib/utils/clipboard';
 import { analyzeImage, regenerateDimension, sendChatMessageStream } from '@/lib/services/geminiService';
 import { getDimensionLabel, resolveUiLocale, UI_TEXT } from '@/lib/i18n/ui';
@@ -25,6 +26,44 @@ const dimensions: DimensionKey[] = [
   'mood',
   'style',
 ];
+
+const getDynamicNegativePrompt = (analysis: AnalysisResult): string => {
+  const styleText = (analysis.structuredPrompts.style?.original || '').toLowerCase();
+  const subjectText = (analysis.structuredPrompts.subject?.original || '').toLowerCase();
+
+  // 1. 基础通用低质量负向词
+  let negatives = ['worst quality', 'low quality', 'normal quality', 'jpeg artifacts', 'signature', 'watermark', 'username', 'blurry'];
+
+  // 2. 检测是否有人物/人体（基于主体描述）
+  const hasHuman = subjectText.includes('person') || subjectText.includes('boy') || 
+                   subjectText.includes('girl') || subjectText.includes('man') || 
+                   subjectText.includes('woman') || subjectText.includes('portrait') ||
+                   subjectText.includes('face') || subjectText.includes('people') ||
+                   subjectText.includes('人') || subjectText.includes('女') || subjectText.includes('男');
+  if (hasHuman) {
+    negatives = [
+      ...negatives,
+      'bad anatomy', 'bad hands', 'mutated hands and fingers', 'missing fingers',
+      'extra limbs', 'deformed', 'disfigured', 'mutated', 'deformed iris', 'deformed pupils'
+    ];
+  }
+
+  // 3. 检测风格类别
+  const isAnime = styleText.includes('anime') || styleText.includes('manga') || 
+                  styleText.includes('cartoon') || styleText.includes('comic') ||
+                  styleText.includes('动漫') || styleText.includes('卡通') || styleText.includes('漫画');
+  const isRealistic = styleText.includes('realistic') || styleText.includes('photo') || 
+                      styleText.includes('photography') || styleText.includes('cinematic') ||
+                      styleText.includes('写实') || styleText.includes('摄影') || styleText.includes('电影');
+
+  if (isAnime) {
+    negatives = [...negatives, 'photorealistic', 'realistic', '3d render', 'cgi', 'monochrome'];
+  } else if (isRealistic) {
+    negatives = [...negatives, 'drawing', 'painting', 'sketch', 'cartoon', 'anime', 'illustration', 'cgi', '3d render'];
+  }
+
+  return negatives.join(', ');
+};
 
 export default function AnalysisClient() {
   const router = useRouter();
@@ -313,7 +352,9 @@ export default function AnalysisClient() {
         const seg = effectiveAnalysis.structuredPrompts[key];
         return getEnglishText(seg);
       }).filter(Boolean);
-      payload = parts.join(', ');
+      const positive = parts.join(', ');
+      const negative = getDynamicNegativePrompt(effectiveAnalysis);
+      payload = `【Positive Prompt】\n${positive}\n\n【Negative Prompt】\n${negative}`;
     } else if (format === 'dalle') {
       const parts = enabledKeys.map((key) => {
         const seg = effectiveAnalysis.structuredPrompts[key];
@@ -731,7 +772,23 @@ export default function AnalysisClient() {
                             ? 'bg-ag-accent/15 text-ag-text border-ag-accent/20'
                             : 'bg-ag-surface/40 text-ag-text/95 border-ag-border/50'
                         }`}>
-                          {msg.text}
+                          {msg.role === 'user' ? (
+                            msg.text
+                          ) : (
+                            <ReactMarkdown
+                              /* eslint-disable @typescript-eslint/no-unused-vars */
+                              components={{
+                                ul: ({ node, ...props }) => <ul className="list-disc pl-4 space-y-1 my-1" {...props} />,
+                                ol: ({ node, ...props }) => <ol className="list-decimal pl-4 space-y-1 my-1" {...props} />,
+                                li: ({ node, ...props }) => <li className="my-0.5" {...props} />,
+                                p: ({ node, ...props }) => <p className="mb-2 last:mb-0 leading-relaxed" {...props} />,
+                                strong: ({ node, ...props }) => <strong className="font-semibold text-ag-text" {...props} />,
+                              }}
+                              /* eslint-enable @typescript-eslint/no-unused-vars */
+                            >
+                              {msg.text}
+                            </ReactMarkdown>
+                          )}
                         </div>
                         {msg.role === 'model' && chatThinkingByMessage[msg.id] && (
                           <details className="rounded-lg border border-ag-border bg-ag-surface/10 p-2">

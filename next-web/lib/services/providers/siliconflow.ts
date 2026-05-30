@@ -1,6 +1,6 @@
 import { AnalysisResult, UserSettings, ChatMessage, PromptSegment, DimensionKey } from '../../types';
-import { AIProvider, TermExplanation, getApiKey, getCurrentModel } from './types';
-import { getMasterAnalysisPrompt } from './masterPrompt';
+import { AIProvider, TermExplanation, getApiKey, getCurrentModel, getCurrentTextModel } from './types';
+import { getMasterAnalysisPrompt, getExplainTermPrompt } from './masterPrompt';
 import { safeParseJSON } from '../../utils/jsonParser';
 import { getApiError, getGenericApiError } from '../../utils/apiErrorMessages';
 
@@ -23,6 +23,9 @@ export class SiliconFlowProvider implements AIProvider {
     }
 
     private getModelName(hasImage: boolean): string {
+        if (!hasImage) {
+            return getCurrentTextModel();
+        }
         const model = getCurrentModel();
         const modelLower = model.toLowerCase().trim();
         if (hasImage) {
@@ -98,12 +101,7 @@ export class SiliconFlowProvider implements AIProvider {
     async explainTerm(term: string, language: string): Promise<TermExplanation> {
         const modelName = this.getModelName(false);
 
-        const prompt = `As an expert Art Director, explain the visual style/term: "${term}".
-Target Language: ${language}
-Rules: Keep it VERY concise.
-"def": Definition (Max 100 words).
-"app": Application (Max 100 words).
-Output JSON: { "def": "...", "app": "..." }`;
+        const prompt = getExplainTermPrompt(term, language);
 
         const response = await fetch(SILICONFLOW_API_URL, {
             method: 'POST',

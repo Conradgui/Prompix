@@ -1,14 +1,13 @@
 import { UserSettings } from '../../types';
 
 const DIMENSION_SCHEMA = `{
-  "description": "...",
   "structuredPrompts": {
-    "subject": { "original": "...", "translated": "" },
-    "environment": { "original": "...", "translated": "" },
-    "composition": { "original": "...", "translated": "" },
-    "lighting": { "original": "...", "translated": "" },
-    "mood": { "original": "...", "translated": "" },
-    "style": { "original": "...", "translated": "" }
+    "subject": { "original": "...", "translated": "..." },
+    "environment": { "original": "...", "translated": "..." },
+    "composition": { "original": "...", "translated": "..." },
+    "lighting": { "original": "...", "translated": "..." },
+    "mood": { "original": "...", "translated": "..." },
+    "style": { "original": "...", "translated": "..." }
   }
 }`;
 
@@ -32,7 +31,7 @@ const resolveFrontLanguage = (settings: UserSettings): string => {
  */
 export const getMasterAnalysisPrompt = (settings: UserSettings) => {
   const frontLang = resolveFrontLanguage(settings);
-  const targetLang = (settings.systemLanguage === 'English') ? 'English' : 'Chinese';
+  const targetLang = settings.cardBackLanguage || (frontLang === 'Chinese' ? 'English' : 'Chinese');
 
   return [
     '你是 Prompix 的视觉提示词拆解引擎。请分析上传的图像并生成符合 Midjourney/Stable Diffusion 要求的结构化生图提示词。',
@@ -44,8 +43,12 @@ export const getMasterAnalysisPrompt = (settings: UserSettings) => {
     DIMENSION_SCHEMA,
     '内容与格式规则：',
     '- 6个维度的 original 与 translated 字段都必须充满，不得返回空值。',
-    '- subject (主体) 与 environment (环境)：必须使用 2-4 句的自然语言长句描述，包含极具画面可复现性的细节，禁止只写单词。',
+    '- subject (主体) 与 environment (环境)：请使用精简紧凑的视觉短句描述（避免在 original 中使用 "which is", "standing on the side of", "looks like" 等口语化介词与被动语态，将从句改为更直接的修饰语叠加，例如将 "a boy who is sitting on a chair" 改为 "a boy sitting on a wooden chair"）。句数控制在 2-3 句，禁止只写单词。',
     '- composition (构图)、lighting (光照)、mood (情绪) 与 style (风格)：必须使用英文逗号分隔的词组/短语形式（建议 6-12 个词组），不写完整句子。',
+    '- 当分析特定视觉风格（style）时，必须在构图、光照或风格字段中智能追加相应的技术参数：',
+    '  * 若为写实摄影或电影级画面（Photorealistic / Cinematic / Realistic）：必须追加相机镜头参数（例如 35mm photograph, shot on Hasselblad, f/1.8 aperture, cinematic color grading）。',
+    '  * 若为动漫或卡通插画（Anime / Cartoon / Illustration）：必须追加二次元技术术语（例如 sharp focus, precise cell shading, digital illustration, anime style）。',
+    '  * 若为 3D 渲染画面（3D Render）：必须追加渲染词汇（例如 Unreal Engine 5 render, global illumination, ray tracing, octane render）。',
     '- 必须客观描述图像，不得虚构未出现的品牌、人物名字或外部设定。',
     `当前视觉风格偏好：${settings.descriptionStyle || 'Standard'}。`,
     `当前角色设定偏好：${settings.persona || 'General'}。`,
@@ -60,13 +63,13 @@ export const getDimensionPrompt = (
   settings: UserSettings,
 ) => {
   const frontLang = resolveFrontLanguage(settings);
-  const targetLang = (settings.systemLanguage === 'English') ? 'English' : 'Chinese';
+  const targetLang = settings.cardBackLanguage || (frontLang === 'Chinese' ? 'English' : 'Chinese');
   const label = DIMENSION_LABELS[dimension] || dimension;
   const isTagDimension = ['composition', 'lighting', 'mood', 'style'].includes(dimension);
 
   const formatRule = isTagDimension
     ? 'original 字段必须为逗号分隔的短语词组（至少 6 项），不写完整段落。'
-    : 'original 字段必须为 2-4 句自然语言描述，包含关键可复现细节。';
+    : 'original 字段请使用精简紧凑的视觉短句描述（避免使用 "which is", "standing on the side of", "looks like" 等口语化介词与被动语态，将从句改为更直接的修饰语叠加，例如将 "a boy who is sitting on a chair" 改为 "a boy sitting on a wooden chair"，句数控制在 2-3 句）。';
 
   return [
     '你是 Prompix 的视觉提示词拆解助手。',
@@ -75,8 +78,6 @@ export const getDimensionPrompt = (
     `1. "original" 字段必须是 ${frontLang}。`,
     `2. "translated" 字段必须是对应的 ${targetLang} 翻译，不能为空。`,
     formatRule,
-    '必须且只能输出如下格式 of JSON 对象，禁止输出任何额外文本：',
-    '{ "original": "...", "translated": "..." }',
   ].join('\n');
 };
 
@@ -95,4 +96,21 @@ Text to translate:
 "${text}"
 
 Output ONLY JSON: { "translated": "YOUR_TRANSLATION_HERE" }`;
+};
+
+/**
+ * Prompt for explaining visual styles/terms in Wordbank
+ */
+export const getExplainTermPrompt = (term: string, language: string) => {
+  return [
+    `As an expert Art Director, explain the visual style or term: "${term}".`,
+    `Target Language: ${language} (You MUST respond in this language).`,
+    `Rules:`,
+    `1. Keep it VERY concise, optimized for a mobile/small viewport card display.`,
+    `2. "def": Pure definition, characteristics, and historical background of the style (Max 80 words).`,
+    `3. "app": Recommended usage, combinations, and negative guidelines when writing generator prompts (Max 80 words).`,
+    `4. Guardrails: If "${term}" is NOT a real artistic style, art movement, design trend, historical technique, photographic parameter, or valid AI generator keyword, or if you are unsure of its true definition, you MUST set "def" to "Unrecognized or general visual concept." and "app" to "Use as a generic descriptive keyword in prompt construction." Do NOT fabricate or invent non-existent artistic concepts, histories, or definitions.`,
+    `Output strictly JSON structure, no extra characters or markdown blocks:`,
+    `{ "def": "...", "app": "..." }`
+  ].join('\n');
 };

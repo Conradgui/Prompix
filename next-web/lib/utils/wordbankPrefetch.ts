@@ -1,15 +1,31 @@
 import { TermExplanationCache, getCachedTermExplanation, isValidTermExplanation } from './termExplanationCache';
 
+// 严格对应用户体验的展示顺序
+const CATEGORY_PRIORITY: Record<string, number> = {
+  subject: 1,
+  environment: 2,
+  composition: 3,
+  lighting: 4,
+  mood: 5,
+  style: 6,
+};
+
+export interface PrefetchQueueItem {
+  term: string;
+  category: string;
+}
+
 export const buildPrefetchQueue = (
-  orderedTerms: string[],
+  minedTerms: { term: string; category: string }[],
   language: string,
   cache: TermExplanationCache,
-): string[] => {
+): PrefetchQueueItem[] => {
   const seen = new Set<string>();
-  const queue: string[] = [];
+  const queue: PrefetchQueueItem[] = [];
 
-  for (const raw of orderedTerms) {
-    const term = String(raw || '').trim();
+  // 1. 去重并提取尚未解释缓存的词汇
+  for (const item of minedTerms) {
+    const term = String(item.term || '').trim();
     if (!term) continue;
 
     const key = term.toLowerCase();
@@ -19,22 +35,30 @@ export const buildPrefetchQueue = (
     const cached = getCachedTermExplanation(cache, term, language);
     if (cached && isValidTermExplanation(cached)) continue;
 
-    queue.push(term);
+    queue.push(item);
   }
 
-  return queue;
+  // 2. 按照主体 -> 环境 -> 构图 -> 光照 -> 情绪 -> 风格进行稳定性排序
+  const sortedQueue = queue.sort((a, b) => {
+    const prioA = CATEGORY_PRIORITY[a.category] ?? 99;
+    const prioB = CATEGORY_PRIORITY[b.category] ?? 99;
+    return prioA - prioB;
+  });
+
+  // 限制最大预取长度为 15 个词汇
+  return sortedQueue.slice(0, 15);
 };
 
-export const prioritizeQueueTerm = (queue: string[], term: string): string[] => {
+export const prioritizeQueueTerm = (queue: PrefetchQueueItem[], term: string): PrefetchQueueItem[] => {
   const target = String(term || '').trim();
   if (!target) return [...queue];
 
-  const unique = Array.from(new Set(queue.map((item) => String(item || '').trim()).filter(Boolean)));
-  const index = unique.findIndex((item) => item.toLowerCase() === target.toLowerCase());
+  const targetLower = target.toLowerCase();
+  const matched = queue.find((item) => item.term.toLowerCase() === targetLower);
+  const remaining = queue.filter((item) => item.term.toLowerCase() !== targetLower);
 
-  if (index >= 0) {
-    unique.splice(index, 1);
+  if (matched) {
+    return [matched, ...remaining];
   }
-
-  return [target, ...unique];
+  return queue;
 };

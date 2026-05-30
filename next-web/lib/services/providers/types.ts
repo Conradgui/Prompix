@@ -26,8 +26,8 @@ export interface AIProvider {
     ): Promise<PromptSegment>;
 }
 
-// 保留可扩展 provider 类型，当前运行时默认使用 MiniMax。
-export type ProviderType = 'minimax' | 'gemini' | 'openai' | 'claude' | 'siliconflow';
+// 保留可扩展 provider 类型。
+export type ProviderType = 'gemini' | 'openai' | 'claude' | 'siliconflow';
 
 export interface ModelDefinition {
     id: string;
@@ -36,9 +36,6 @@ export interface ModelDefinition {
 }
 
 export const PROVIDER_MODELS: Record<ProviderType, ModelDefinition[]> = {
-    minimax: [
-        { id: 'MiniMax-M2.5', label: 'MiniMax-M2.5 (默认)', supportsVision: true },
-    ],
     gemini: [
         { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', supportsVision: true },
         { id: 'gemini-3-flash-preview', label: 'Gemini 3 Flash Preview', supportsVision: true },
@@ -61,7 +58,6 @@ export const PROVIDER_MODELS: Record<ProviderType, ModelDefinition[]> = {
 };
 
 export const PROVIDER_LABELS: Record<ProviderType, string> = {
-    minimax: 'MiniMax',
     gemini: 'Gemini',
     openai: 'OpenAI Compatible',
     claude: 'Claude',
@@ -73,6 +69,7 @@ export const STORAGE_KEYS = {
     API_CONFIG: 'PROMPIX_API_CONFIG',
     PROVIDER: 'PROMPIX_PROVIDER',
     MODEL: 'PROMPIX_MODEL_ID',
+    TEXT_MODEL: 'PROMPIX_TEXT_MODEL_ID',
     API_KEY_PREFIX: 'PROMPIX_API_KEY_',
 };
 
@@ -91,6 +88,7 @@ export const DEFAULT_API_CONFIG: ApiConfig = {
     baseUrl: 'https://api.openai.com/v1',
     apiKey: '',
     model: 'gpt-4o-mini',
+    textModel: '',
     groupId: '',
     provider: 'openai',
 };
@@ -105,6 +103,7 @@ const parseJson = <T>(raw: string | null): T | null => {
 };
 
 const normalizeBaseUrl = (url: string): string => {
+    if (url === '') return '';
     if (!url) return DEFAULT_API_CONFIG.baseUrl;
     let trimmed = url.trim().replace(/\/+$/, '');
     if (!/^https?:\/\//i.test(trimmed)) trimmed = `https://${trimmed}`;
@@ -116,18 +115,23 @@ const normalizeBaseUrl = (url: string): string => {
 
 const cleanApiConfig = (partial: Partial<ApiConfig> | null): ApiConfig => {
     const cfg = partial || {};
-    const baseUrl = normalizeBaseUrl(cfg.baseUrl || DEFAULT_API_CONFIG.baseUrl);
-    let model = (cfg.model || DEFAULT_API_CONFIG.model).trim();
+    const baseUrl = normalizeBaseUrl(cfg.baseUrl !== undefined ? cfg.baseUrl : DEFAULT_API_CONFIG.baseUrl);
+    let model = cfg.model !== undefined ? cfg.model : DEFAULT_API_CONFIG.model;
+    let textModel = cfg.textModel !== undefined ? cfg.textModel : '';
     if (baseUrl.includes('xiaomimimo.com') || model.toLowerCase().startsWith('mimo')) {
         model = model.toLowerCase();
     }
+    if (baseUrl.includes('xiaomimimo.com') || textModel.toLowerCase().startsWith('mimo')) {
+        textModel = textModel.toLowerCase();
+    }
     return {
-        providerLabel: (cfg.providerLabel || DEFAULT_API_CONFIG.providerLabel).trim(),
+        providerLabel: (cfg.providerLabel !== undefined ? cfg.providerLabel : DEFAULT_API_CONFIG.providerLabel).trim(),
         baseUrl,
-        apiKey: (cfg.apiKey || '').trim(),
-        model,
-        groupId: (cfg.groupId || '').trim(),
-        provider: (cfg.provider || DEFAULT_API_CONFIG.provider || 'minimax').trim(),
+        apiKey: (cfg.apiKey !== undefined ? cfg.apiKey : '').trim(),
+        model: model.trim(),
+        textModel: textModel.trim(),
+        groupId: (cfg.groupId !== undefined ? cfg.groupId : '').trim(),
+        provider: (cfg.provider || DEFAULT_API_CONFIG.provider || 'gemini').trim(),
     };
 };
 
@@ -155,7 +159,7 @@ export const getApiConfig = (): ApiConfig => {
     const legacyKey = localStorage.getItem(`${LEGACY_STORAGE_KEYS.API_KEY_PREFIX}OPENAI`) || '';
     if (legacyModel || legacyKey) {
         return cleanApiConfig({
-            providerLabel: 'MiniMax',
+            providerLabel: 'Gemini',
             baseUrl: DEFAULT_API_CONFIG.baseUrl,
             model: legacyModel || DEFAULT_API_CONFIG.model,
             apiKey: legacyKey,
@@ -170,8 +174,11 @@ export const setApiConfig = (config: Partial<ApiConfig>): ApiConfig => {
     const next = cleanApiConfig({ ...getApiConfig(), ...config });
     localStorage.setItem(STORAGE_KEYS.API_CONFIG, JSON.stringify(next));
     localStorage.setItem(STORAGE_KEYS.MODEL, next.model);
-    localStorage.setItem(STORAGE_KEYS.PROVIDER, next.provider || 'minimax');
-    localStorage.setItem(`${STORAGE_KEYS.API_KEY_PREFIX}${(next.provider || 'minimax').toUpperCase()}`, next.apiKey);
+    if (next.textModel !== undefined) {
+        localStorage.setItem(STORAGE_KEYS.TEXT_MODEL, next.textModel);
+    }
+    localStorage.setItem(STORAGE_KEYS.PROVIDER, next.provider || 'gemini');
+    localStorage.setItem(`${STORAGE_KEYS.API_KEY_PREFIX}${(next.provider || 'gemini').toUpperCase()}`, next.apiKey);
     return next;
 };
 
@@ -180,10 +187,6 @@ export const isApiConfigReady = (config: ApiConfig): boolean => {
 };
 
 export const getApiKey = (provider: ProviderType): string | null => {
-    if (provider === 'minimax') {
-        const cfg = getApiConfig();
-        if (cfg.apiKey) return cfg.apiKey;
-    }
     const current = localStorage.getItem(`${STORAGE_KEYS.API_KEY_PREFIX}${provider.toUpperCase()}`);
     if (current) return current;
     return localStorage.getItem(`${LEGACY_STORAGE_KEYS.API_KEY_PREFIX}${provider.toUpperCase()}`);
@@ -191,10 +194,6 @@ export const getApiKey = (provider: ProviderType): string | null => {
 
 export const setApiKey = (provider: ProviderType, key: string): void => {
     const normalized = (key || '').trim();
-    if (provider === 'minimax') {
-        setApiConfig({ apiKey: normalized });
-        return;
-    }
     localStorage.setItem(`${STORAGE_KEYS.API_KEY_PREFIX}${provider.toUpperCase()}`, normalized);
 };
 
@@ -209,8 +208,12 @@ export const getCurrentModel = (): string => {
     return DEFAULT_API_CONFIG.model;
 };
 
+export const getCurrentTextModel = (): string => {
+    const config = getApiConfig();
+    return config.textModel || config.model || DEFAULT_API_CONFIG.model;
+};
+
 const KEY_PATTERNS: Record<ProviderType, RegExp> = {
-    minimax: /^sk-[a-zA-Z0-9_-]{16,}$/,
     gemini: /^AIza[a-zA-Z0-9_-]{35}$/,
     openai: /^sk-[a-zA-Z0-9_-]{20,}$/,
     claude: /^sk-ant-[a-zA-Z0-9_-]+$/,
@@ -225,14 +228,12 @@ export const validateKeyFormat = (provider: ProviderType, key: string): boolean 
 
 export const getKeyFormatError = (provider: ProviderType): string => {
     const providerNames = {
-        minimax: 'MiniMax',
         gemini: 'Gemini',
         openai: 'OpenAI Compatible',
         claude: 'Claude',
         siliconflow: 'SiliconFlow'
     };
     const expectedPrefixes = {
-        minimax: 'sk-',
         gemini: 'AIza',
         openai: 'sk-',
         claude: 'sk-ant-',

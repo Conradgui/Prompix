@@ -10,10 +10,10 @@ describe('root startup script mapping', () => {
     };
     const scripts = pkg.scripts || {};
 
-    expect(scripts.start).toBe('npm run prompix:open');
-    expect(scripts['start:dev']).toBe('npm run prompix:open:dev');
-    expect(scripts['prompix:open']).toBe('node ./scripts/launch-prompix.mjs');
-    expect(scripts['prompix:open:dev']).toBe('node ./scripts/launch-prompix.mjs --mode=dev');
-    expect(scripts['legacy:web']).toBe('node ./scripts/start.mjs --target=web');
+    expect(scripts.dev).toBe('npm run start:dev');
+    expect(scripts.start).toBe('node ./scripts/launch-prompix.mjs --mode=stable');
+    expect(scripts['start:dev']).toBe('node ./scripts/launch-prompix.mjs --mode=dev');
+    expect(scripts.stop).toBe('node ./scripts/stop-prompix.mjs');
+    expect(scripts.build).toBe('npm --prefix ./next-web run build');
   });
 });

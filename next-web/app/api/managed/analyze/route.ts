@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/server/rate-limit';
-import { analyzeWithMiniMax } from '@/lib/server/managed-ops';
+import { analyzeWithProvider } from '@/lib/server/managed-ops';
 import { canUseCustomApiInRequest, getApiModeBlockedMessage, resolveRequestRuntimeMode } from '@/lib/server/runtime-policy';
 
 export async function POST(req: NextRequest) {
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '缺少图片或设置参数。' }, { status: 400 });
     }
 
-    const result = await analyzeWithMiniMax(image, settings, apiConfig);
+    const result = await analyzeWithProvider(image, settings, apiConfig);
     return NextResponse.json(result);
   } catch (error: any) {
     const message = error?.message || '分析失败，请稍后重试。';

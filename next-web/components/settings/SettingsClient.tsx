@@ -3,10 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import Surface from '@/components/ui/Surface';
 import PrimaryButton from '@/components/ui/PrimaryButton';
 import { useAppState } from '@/lib/state/app-state';
-import { ApiConfig, PromptOutputLanguage, RuntimeMode } from '@/lib/types';
+import { ApiConfig, PromptOutputLanguage } from '@/lib/types';
 import { applyPromptOutputLanguage } from '@/lib/utils/promptOutput';
 import { getModuleLabel, resolveUiLocale, UI_TEXT } from '@/lib/i18n/ui';
 import { canUseApiMode } from '@/lib/runtime/policy';
@@ -29,12 +28,12 @@ export default function SettingsClient() {
   const router = useRouter();
   const {
     settings,
-    runtimeMode,
     saveSettings,
-    setRuntimeModeAction,
     clearLegacyHistoryAndWordbankCacheAction,
   } = useAppState();
   const [apiConfig, setApiConfigState] = useState<ApiConfig>(DEFAULT_API_CONFIG);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [devModeAuthorized, setDevModeAuthorized] = useState(isLocalDeveloperModePolicy());
   const [devModeSource, setDevModeSource] = useState<'local' | 'public'>(isLocalDeveloperModePolicy() ? 'local' : 'public');
   const [devPassword, setDevPassword] = useState('');
@@ -97,14 +96,25 @@ export default function SettingsClient() {
 
   const applyApiConfig = (patch: Partial<ApiConfig>) => {
     if (!apiModeEnabled) return;
-    const next = setApiConfig({ ...apiConfig, ...patch });
-    setApiConfigState(next);
+    setApiConfigState((prev) => ({ ...prev, ...patch }));
+    setHasUnsavedChanges(true);
+    setSaveStatus('idle');
   };
 
-  const switchRuntime = (mode: RuntimeMode) => {
-    if (mode === 'api' && !apiModeEnabled) return;
-    setRuntimeModeAction(mode);
+  const saveApiConfigAction = () => {
+    if (!apiModeEnabled) return;
+    try {
+      const next = setApiConfig(apiConfig);
+      setApiConfigState(next);
+      setHasUnsavedChanges(false);
+      setSaveStatus('success');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    } catch {
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    }
   };
+
 
   const switchPromptLanguage = async (lang: PromptOutputLanguage) => {
     const next = applyPromptOutputLanguage(settings, lang);
@@ -225,6 +235,10 @@ export default function SettingsClient() {
                         baseUrl = 'https://api.siliconflow.cn/v1';
                         providerLabel = 'SiliconFlow';
                         model = 'Qwen/Qwen2.5-VL-72B-Instruct';
+                      } else if (val === 'gemini') {
+                        baseUrl = '';
+                        providerLabel = 'Google Gemini';
+                        model = 'gemini-2.5-flash';
                       }
 
                       applyApiConfig({
@@ -239,6 +253,7 @@ export default function SettingsClient() {
                     <option className="bg-ag-surface-solid dark:bg-[#1A1D24] text-ag-text" value="openai">OpenAI Compatible (如 GPT, Qwen, GLM, DeepSeek)</option>
                     <option className="bg-ag-surface-solid dark:bg-[#1A1D24] text-ag-text" value="claude">Anthropic Claude</option>
                     <option className="bg-ag-surface-solid dark:bg-[#1A1D24] text-ag-text" value="siliconflow">SiliconFlow (硅基流动)</option>
+                    <option className="bg-ag-surface-solid dark:bg-[#1A1D24] text-ag-text" value="gemini">Google Gemini</option>
                   </select>
                 </label>
 
@@ -264,12 +279,16 @@ export default function SettingsClient() {
                   />
                 </label>
 
+                {/* 多模态模型配置 */}
                 <div className="text-xs font-semibold text-ag-muted col-span-1 sm:col-span-2">
-                  <span className="block">{text.settings.model}</span>
+                  <div className="flex items-center gap-1">
+                    <span className="block">{text.settings.model}</span>
+                    <span className="text-[10px] text-ag-muted/80 font-normal">{text.settings.modelHelp}</span>
+                  </div>
                   <div className="space-y-2">
                     <input
                       disabled={!apiModeEnabled}
-                      placeholder="请输入大模型 ID (例如 qwen-vl-max)"
+                      placeholder={locale === 'zh' ? '请输入多模态大模型 ID (例如 qwen-vl-max)' : 'Enter multimodal model ID (e.g. gpt-4o-mini)'}
                       className="mt-1.5 w-full border-0 border-b border-ag-border bg-transparent px-0 py-2 text-sm text-ag-text outline-none focus:border-ag-accent transition duration-200"
                       value={apiConfig.model}
                       onChange={(e) => applyApiConfig({ model: e.target.value })}
@@ -280,24 +299,28 @@ export default function SettingsClient() {
                         {apiConfig.provider === 'openai' && (
                           <>
                             <button
+                              type="button"
                               onClick={() => applyApiConfig({ model: 'gpt-4o-mini', baseUrl: 'https://api.openai.com/v1' })}
                               className="rounded px-2 py-0.5 text-[10px] bg-ag-accent/5 text-ag-accent border border-ag-accent/10 hover:bg-ag-accent/10 transition"
                             >
                               GPT-4o-Mini
                             </button>
                             <button
+                              type="button"
                               onClick={() => applyApiConfig({ model: 'gpt-4o', baseUrl: 'https://api.openai.com/v1' })}
                               className="rounded px-2 py-0.5 text-[10px] bg-ag-accent/5 text-ag-accent border border-ag-accent/10 hover:bg-ag-accent/10 transition"
                             >
                               GPT-4o
                             </button>
                             <button
+                              type="button"
                               onClick={() => applyApiConfig({ model: 'qwen-vl-max', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1' })}
                               className="rounded px-2 py-0.5 text-[10px] bg-ag-accent/5 text-ag-accent border border-ag-accent/10 hover:bg-ag-accent/10 transition"
                             >
                               Qwen-VL-Max
                             </button>
                             <button
+                              type="button"
                               onClick={() => applyApiConfig({ model: 'glm-4v', baseUrl: 'https://open.bigmodel.cn/api/paas/v4' })}
                               className="rounded px-2 py-0.5 text-[10px] bg-ag-accent/5 text-ag-accent border border-ag-accent/10 hover:bg-ag-accent/10 transition"
                             >
@@ -308,50 +331,141 @@ export default function SettingsClient() {
                         {apiConfig.provider === 'siliconflow' && (
                           <>
                             <button
+                              type="button"
                               onClick={() => applyApiConfig({ model: 'Qwen/Qwen2.5-VL-72B-Instruct' })}
                               className="rounded px-2 py-0.5 text-[10px] bg-ag-accent/5 text-ag-accent border border-ag-accent/10 hover:bg-ag-accent/10 transition"
                             >
                               Qwen2.5-VL 72B
                             </button>
                             <button
+                              type="button"
                               onClick={() => applyApiConfig({ model: 'Qwen/Qwen2.5-VL-7B-Instruct' })}
                               className="rounded px-2 py-0.5 text-[10px] bg-ag-accent/5 text-ag-accent border border-ag-accent/10 hover:bg-ag-accent/10 transition"
                             >
                               Qwen2.5-VL 7B
-                            </button>
-                            <button
-                              onClick={() => applyApiConfig({ model: 'deepseek-ai/DeepSeek-V3' })}
-                              className="rounded px-2 py-0.5 text-[10px] bg-ag-accent/5 text-ag-accent border border-ag-accent/10 hover:bg-ag-accent/10 transition"
-                            >
-                              DeepSeek-V3
-                            </button>
-                            <button
-                              onClick={() => applyApiConfig({ model: 'deepseek-ai/DeepSeek-R1' })}
-                              className="rounded px-2 py-0.5 text-[10px] bg-ag-accent/5 text-ag-accent border border-ag-accent/10 hover:bg-ag-accent/10 transition"
-                            >
-                              DeepSeek-R1
                             </button>
                           </>
                         )}
                         {apiConfig.provider === 'claude' && (
                           <>
                             <button
+                              type="button"
                               onClick={() => applyApiConfig({ model: 'claude-3-7-sonnet-latest' })}
                               className="rounded px-2 py-0.5 text-[10px] bg-ag-accent/5 text-ag-accent border border-ag-accent/10 hover:bg-ag-accent/10 transition"
                             >
                               Claude 3.7 Sonnet
                             </button>
                             <button
+                              type="button"
                               onClick={() => applyApiConfig({ model: 'claude-3-5-sonnet-latest' })}
                               className="rounded px-2 py-0.5 text-[10px] bg-ag-accent/5 text-ag-accent border border-ag-accent/10 hover:bg-ag-accent/10 transition"
                             >
                               Claude 3.5 Sonnet
                             </button>
                             <button
+                              type="button"
                               onClick={() => applyApiConfig({ model: 'claude-3-5-opus-latest' })}
                               className="rounded px-2 py-0.5 text-[10px] bg-ag-accent/5 text-ag-accent border border-ag-accent/10 hover:bg-ag-accent/10 transition"
                             >
                               Claude 3.5 Opus
+                            </button>
+                          </>
+                        )}
+                        {apiConfig.provider === 'gemini' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => applyApiConfig({ model: 'gemini-2.5-flash', baseUrl: '' })}
+                              className="rounded px-2 py-0.5 text-[10px] bg-ag-accent/5 text-ag-accent border border-ag-accent/10 hover:bg-ag-accent/10 transition"
+                            >
+                              Gemini 2.5 Flash
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => applyApiConfig({ model: 'gemini-3-flash-preview', baseUrl: '' })}
+                              className="rounded px-2 py-0.5 text-[10px] bg-ag-accent/5 text-ag-accent border border-ag-accent/10 hover:bg-ag-accent/10 transition"
+                            >
+                              Gemini 3 Flash Preview
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 降本辅助模型配置（选填） */}
+                <div className="text-xs font-semibold text-ag-muted col-span-1 sm:col-span-2 mt-4">
+                  <div className="flex items-center gap-1">
+                    <span className="block">{text.settings.textModel}</span>
+                    <span className="text-[10px] text-ag-muted/80 font-normal">{text.settings.textModelHelp}</span>
+                  </div>
+                  <div className="space-y-2">
+                    <input
+                      disabled={!apiModeEnabled}
+                      placeholder={locale === 'zh' ? '选填，留空则默认使用多模态分析模型' : 'Optional. Defaults to Multimodal Model if blank'}
+                      className="mt-1.5 w-full border-0 border-b border-ag-border bg-transparent px-0 py-2 text-sm text-ag-text outline-none focus:border-ag-accent transition duration-200"
+                      value={apiConfig.textModel || ''}
+                      onChange={(e) => applyApiConfig({ textModel: e.target.value })}
+                    />
+                    {apiModeEnabled && (
+                      <div className="flex flex-wrap gap-1.5 pt-1.5">
+                        <span className="text-[10px] text-ag-muted self-center mr-1">快捷预设:</span>
+                        {apiConfig.provider === 'openai' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => applyApiConfig({ textModel: 'gpt-4o-mini' })}
+                              className="rounded px-2 py-0.5 text-[10px] bg-ag-accent/5 text-ag-accent border border-ag-accent/10 hover:bg-ag-accent/10 transition"
+                            >
+                              GPT-4o-Mini
+                            </button>
+                          </>
+                        )}
+                        {apiConfig.provider === 'siliconflow' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => applyApiConfig({ textModel: 'deepseek-ai/DeepSeek-V3' })}
+                              className="rounded px-2 py-0.5 text-[10px] bg-ag-accent/5 text-ag-accent border border-ag-accent/10 hover:bg-ag-accent/10 transition"
+                            >
+                              DeepSeek-V3
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => applyApiConfig({ textModel: 'deepseek-ai/DeepSeek-R1' })}
+                              className="rounded px-2 py-0.5 text-[10px] bg-ag-accent/5 text-ag-accent border border-ag-accent/10 hover:bg-ag-accent/10 transition"
+                            >
+                              DeepSeek-R1
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => applyApiConfig({ textModel: 'Qwen/Qwen2.5-7B-Instruct' })}
+                              className="rounded px-2 py-0.5 text-[10px] bg-ag-accent/5 text-ag-accent border border-ag-accent/10 hover:bg-ag-accent/10 transition"
+                            >
+                              Qwen2.5-7B
+                            </button>
+                          </>
+                        )}
+                        {apiConfig.provider === 'claude' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => applyApiConfig({ textModel: 'claude-3-5-haiku-latest' })}
+                              className="rounded px-2 py-0.5 text-[10px] bg-ag-accent/5 text-ag-accent border border-ag-accent/10 hover:bg-ag-accent/10 transition"
+                            >
+                              Claude 3.5 Haiku
+                            </button>
+                          </>
+                        )}
+                        {apiConfig.provider === 'gemini' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => applyApiConfig({ textModel: 'gemini-2.5-flash' })}
+                              className="rounded px-2 py-0.5 text-[10px] bg-ag-accent/5 text-ag-accent border border-ag-accent/10 hover:bg-ag-accent/10 transition"
+                            >
+                              Gemini 2.5 Flash
                             </button>
                           </>
                         )}
@@ -360,6 +474,34 @@ export default function SettingsClient() {
                   </div>
                 </div>
               </div>
+
+              {apiModeEnabled && (
+                <div className="pt-5 border-t border-ag-border/20 flex items-center justify-between mt-6">
+                  <div className="text-xs text-ag-muted/80">
+                    {saveStatus === 'success' && (
+                      <span className="text-green-600 font-semibold flex items-center gap-1">
+                        ✓ {locale === 'zh' ? '配置已成功保存！' : 'Configuration saved successfully!'}
+                      </span>
+                    )}
+                    {saveStatus === 'error' && (
+                      <span className="text-red-600 font-semibold flex items-center gap-1">
+                        ✗ {locale === 'zh' ? '保存失败，请检查输入。' : 'Save failed, please check inputs.'}
+                      </span>
+                    )}
+                    {saveStatus === 'idle' && hasUnsavedChanges && (
+                      <span className="text-amber-600 font-medium flex items-center gap-1 animate-pulse">
+                        ⚠ {locale === 'zh' ? '有未保存的配置修改，请点击保存' : 'You have unsaved configuration changes'}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={saveApiConfigAction}
+                    className="rounded-lg bg-ag-accent hover:bg-ag-accent-dark text-white px-4 py-2 font-bold text-xs transition duration-200 shadow-sm"
+                  >
+                    💾 {locale === 'zh' ? '保存已修改配置' : 'Save Config'}
+                  </button>
+                </div>
+              )}
             </section>
           )}
 
@@ -499,8 +641,24 @@ export default function SettingsClient() {
         {/* Footer Area */}
         <div className="px-6 py-3 bg-ag-surface/20 border-t border-ag-border/35 flex items-center justify-between shrink-0 select-none">
           <span className="text-[10px] text-ag-muted flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-            {text.settings.autoSaved}
+            {activeTab === 'api' ? (
+              hasUnsavedChanges ? (
+                <>
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  {locale === 'zh' ? '有未保存的接口修改' : 'Unsaved API changes'}
+                </>
+              ) : (
+                <>
+                  <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                  {locale === 'zh' ? '接口配置已就绪' : 'API config is ready'}
+                </>
+              )
+            ) : (
+              <>
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                {text.settings.autoSaved}
+              </>
+            )}
           </span>
           <button
             onClick={() => router.push('/')}

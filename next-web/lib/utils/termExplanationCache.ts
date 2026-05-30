@@ -1,5 +1,6 @@
 import type { ManagedMeta } from '../types';
 import type { TermExplanation } from '../services/geminiService';
+import { AESTHETIC_TERMS } from '../data/aestheticTerms';
 
 export interface TermExplanationCacheItem extends TermExplanation {
   term: string;
@@ -40,13 +41,56 @@ export const saveTermExplanationCache = (cache: TermExplanationCache): void => {
   }
 };
 
+// 新增查找函数，用于从本地预设库检索定义
+export const getStaticPresetExplanation = (
+  term: string,
+  language: string,
+): { def: string; app: string } | null => {
+  const normTerm = term.trim().toLowerCase();
+  const langKey = language.trim().toLowerCase().startsWith('chin') ? 'Chinese' : 'English';
+  
+  const found = AESTHETIC_TERMS.find(t => {
+    const enTerm = (t.languages.English?.term || '').trim().toLowerCase();
+    const zhTerm = (t.languages.Chinese?.term || '').trim().toLowerCase();
+    return enTerm === normTerm || zhTerm === normTerm;
+  });
+
+  if (found) {
+    const content = found.languages[langKey] || found.languages.English;
+    if (content && content.def && content.app) {
+      return {
+        def: content.def,
+        app: content.app,
+      };
+    }
+  }
+  return null;
+};
+
 export const getCachedTermExplanation = (
   cache: TermExplanationCache,
   term: string,
   language: string,
 ): TermExplanationCacheItem | null => {
   const key = buildTermCacheKey(term, language);
-  return cache[key] || null;
+  const cached = cache[key];
+  if (cached && isValidTermExplanation(cached)) {
+    return cached;
+  }
+
+  // 本地预设旁路拦截
+  const staticPreset = getStaticPresetExplanation(term, language);
+  if (staticPreset) {
+    return {
+      term,
+      language,
+      def: staticPreset.def,
+      app: staticPreset.app,
+      updatedAt: Date.now(),
+    };
+  }
+
+  return null;
 };
 
 export const upsertTermExplanationCache = (

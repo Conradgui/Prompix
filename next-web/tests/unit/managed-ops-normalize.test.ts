@@ -1,28 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS } from '../../lib/types';
 
-vi.mock('../../lib/server/minimax', () => ({
-  buildVisionPrompt: vi.fn((_image: string, prompt: string) => prompt),
-  callMiniMax: vi.fn(),
-  resolveMiniMaxConfig: vi.fn(() => ({
-    source: 'managed',
-    apiKey: 'sk-managed',
-    groupId: 'group-1',
-    model: 'MiniMax-M2.5',
-    baseUrl: 'https://api.minimaxi.com/v1/chat/completions',
-  })),
-}));
+const mockAnalyzeImage = vi.fn();
 
-import { callMiniMax } from '../../lib/server/minimax';
-import { analyzeWithMiniMax } from '../../lib/server/managed-ops';
+vi.mock('../../lib/server/provider-factory', () => {
+  return {
+    GeminiServerProvider: vi.fn().mockImplementation(() => {
+      return {
+        analyzeImage: mockAnalyzeImage,
+      };
+    }),
+  };
+});
+
+import { analyzeWithProvider } from '../../lib/server/managed-ops';
 
 describe('managed analysis normalization', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.GEMINI_API_KEY = 'test-api-key';
   });
 
   it('normalizes non-standard segment shapes into six dimensions', async () => {
-    vi.mocked(callMiniMax).mockResolvedValueOnce(JSON.stringify({
+    mockAnalyzeImage.mockResolvedValueOnce({
       summary: '浴室场景',
       subject: '玻璃淋浴间与人物特写',
       environment: { text: '现代极简浴室，墙面浅灰瓷砖' },
@@ -30,9 +30,9 @@ describe('managed analysis normalization', () => {
       lighting: ['soft diffuse light', 'high-key'],
       mood: { value: 'clean, calm, premium' },
       style: { original: 'anime-inspired, cinematic' },
-    }));
+    });
 
-    const result = await analyzeWithMiniMax('img-data', DEFAULT_SETTINGS);
+    const result = await analyzeWithProvider('img-data', DEFAULT_SETTINGS);
 
     expect(result.analysis.description).toBe('浴室场景');
     expect(result.analysis.structuredPrompts.subject.original).toContain('玻璃淋浴间');
@@ -44,16 +44,18 @@ describe('managed analysis normalization', () => {
   });
 
   it('extracts dimensions from description blocks when structuredPrompts is missing', async () => {
-    vi.mocked(callMiniMax).mockResolvedValueOnce(`
+    mockAnalyzeImage.mockResolvedValueOnce({
+      description: `
 Subject: Blonde anime character close-up with blue eyes.
 Environment: Minimalist indoor shower space with glass and tiles.
 Composition: close-up, centered framing, negative space right.
 Lighting: soft diffuse light, high-key.
 Mood: calm, clean, premium.
 Style: anime-inspired, cinematic concept art.
-`.trim());
+`.trim(),
+    });
 
-    const result = await analyzeWithMiniMax('img-data', DEFAULT_SETTINGS);
+    const result = await analyzeWithProvider('img-data', DEFAULT_SETTINGS);
 
     expect(result.analysis.structuredPrompts.subject.original).toContain('Blonde anime character');
     expect(result.analysis.structuredPrompts.environment.original).toContain('indoor shower');
@@ -63,4 +65,3 @@ Style: anime-inspired, cinematic concept art.
     expect(result.analysis.structuredPrompts.style.original).toContain('anime-inspired');
   });
 });
-

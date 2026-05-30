@@ -11,7 +11,7 @@ vi.mock('@/lib/server/runtime-policy', () => ({
 }));
 
 vi.mock('@/lib/server/managed-ops', () => ({
-  termFollowupWithMiniMax: vi.fn(async () => ({
+  termFollowupWithProvider: vi.fn(async () => ({
     text: 'follow-up answer',
     meta: { thinking: 'follow-up thinking' },
   })),

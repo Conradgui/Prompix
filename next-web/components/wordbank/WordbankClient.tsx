@@ -1,13 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
 import Surface from '@/components/ui/Surface';
 import PrimaryButton from '@/components/ui/PrimaryButton';
 import { useAppState } from '@/lib/state/app-state';
 import { mineHistory, TermCategory } from '@/lib/utils/historyMiner';
 import { askTermFollowUp, explainVisualTerm, TermExplanation } from '@/lib/services/geminiService';
+import { buildPrefetchQueue } from '@/lib/utils/wordbankPrefetch';
 import { getDimensionLabel, resolveUiLocale, UI_TEXT } from '@/lib/i18n/ui';
+import { RuntimeMode } from '@/lib/types';
 import {
   getCachedTermExplanation,
   isValidTermExplanation,
@@ -24,27 +28,76 @@ import {
   saveTermFollowupCache,
   TermFollowupThreadCache,
 } from '@/lib/utils/termFollowupCache';
-import { buildPrefetchQueue } from '@/lib/utils/wordbankPrefetch';
 import { TermFollowupMessage } from '@/lib/types';
 
+
+interface ParsedError {
+  code: string | number;
+  message: string;
+  isCustomProviderError: boolean;
+}
+
+const parseError = (error: any): ParsedError => {
+  const msg = error?.message || String(error);
+  
+  let jsonStr = msg;
+  const jsonMatch = msg.match(/(\{[\s\S]*\})/);
+  if (jsonMatch) {
+    jsonStr = jsonMatch[1];
+  }
+  
+  try {
+    const parsed = JSON.parse(jsonStr);
+    if (parsed?.error) {
+      return {
+        code: parsed.error.code || 'ERROR',
+        message: parsed.error.message || JSON.stringify(parsed.error),
+        isCustomProviderError: true,
+      };
+    }
+    if (parsed?.code || parsed?.message) {
+      return {
+        code: parsed.code || 'ERROR',
+        message: parsed.message || JSON.stringify(parsed),
+        isCustomProviderError: true,
+      };
+    }
+  } catch {
+    // Plain text
+  }
+
+  if (msg.includes('503') || msg.includes('500') || msg.includes('429') || msg.includes('401') || msg.includes('403')) {
+    const codeMatch = msg.match(/(503|500|429|401|403)/);
+    return {
+      code: codeMatch ? codeMatch[1] : 'ERROR',
+      message: msg,
+      isCustomProviderError: true,
+    };
+  }
+
+  return {
+    code: 'ERROR',
+    message: msg,
+    isCustomProviderError: false,
+  };
+};
 
 const CATEGORY_ORDER: TermCategory[] = ['subject', 'environment', 'composition', 'lighting', 'mood', 'style'];
 
 export default function WordbankClient() {
-  const { historyItems, settings, hydrated } = useAppState();
+  const { currentHistoryItem, settings, hydrated } = useAppState();
+  const router = useRouter();
+  const [activeTermMode, setActiveTermMode] = useState<Record<string, RuntimeMode>>({});
+  const [lexiconError, setLexiconError] = useState<{
+    code?: string | number;
+    message: string;
+    raw?: string;
+    isCustomProviderError?: boolean;
+    term: string;
+  } | null>(null);
   const locale = resolveUiLocale(settings.systemLanguage);
   const text = UI_TEXT[locale];
-  const language = useMemo(() => {
-    const raw = (settings.systemLanguage || 'Chinese').trim().toLowerCase();
-    if (
-      raw === 'en' ||
-      raw.includes('english') ||
-      raw.includes('英文')
-    ) {
-      return 'English';
-    }
-    return 'Chinese';
-  }, [settings.systemLanguage]);
+  const language = 'Chinese';
 
   const [activeCategory, setActiveCategory] = useState<TermCategory | 'all'>('all');
   const [activeTerm, setActiveTerm] = useState<string | null>(null);
@@ -57,12 +110,13 @@ export default function WordbankClient() {
   const [followupInput, setFollowupInput] = useState('');
   const [followupSending, setFollowupSending] = useState(false);
   const [errorText, setErrorText] = useState('');
-  const [prefetchProgress, setPrefetchProgress] = useState({ total: 0, done: 0, running: false });
+  const [prefetchText, setPrefetchText] = useState<string | null>(null);
+
 
   const mined = useMemo(() => {
-    if (!hydrated) return [];
-    return mineHistory(historyItems);
-  }, [hydrated, historyItems]);
+    if (!hydrated || !currentHistoryItem) return [];
+    return mineHistory([currentHistoryItem]);
+  }, [hydrated, currentHistoryItem]);
   const filteredTerms = useMemo(() => {
     if (activeCategory === 'all') return mined;
     return mined.filter((item) => item.category === activeCategory);
@@ -129,30 +183,37 @@ export default function WordbankClient() {
     return true;
   }, [language]);
 
-  const fetchTermExplanation = useCallback(async (term: string): Promise<void> => {
+  const fetchTermExplanation = useCallback(async (term: string, forceMode?: RuntimeMode): Promise<void> => {
     if (!term) return;
 
-    if (applyCachedExplanation(term) && activeTermRef.current === term) {
+    if (!forceMode && applyCachedExplanation(term) && activeTermRef.current === term) {
+      setLexiconError(null);
       return;
     }
 
-    const key = `${language}::${term.toLowerCase()}`;
+    const modeToUse = forceMode || 'api';
+    const key = `${language}::${term.toLowerCase()}::${modeToUse}`;
     const inflight = inflightRef.current.get(key);
     if (inflight) {
       await inflight;
+      if (activeTermRef.current === term) {
+        applyCachedExplanation(term);
+        setLexiconError(null);
+      }
       return;
     }
 
     const task = (async () => {
       if (activeTermRef.current === term) {
         setActiveLoadingTerm(term);
+        setLexiconError(null);
       }
 
       try {
         let latestThinking = '';
         const next = await explainVisualTerm(term, language, (meta) => {
           latestThinking = meta?.thinking || '';
-        });
+        }, modeToUse);
 
         if (!isValidTermExplanation(next)) {
           throw new Error(locale === 'zh' ? '术语解释结果不完整。' : 'Incomplete explanation result.');
@@ -167,23 +228,34 @@ export default function WordbankClient() {
           setExplanation(next);
           setExplanationThinking(latestThinking);
           setErrorText('');
+          setLexiconError(null);
+          setActiveTermMode((prev) => ({ ...prev, [term]: modeToUse }));
         }
       } catch (error: any) {
-        const fallback = getCachedTermExplanation(cacheRef.current, term, language);
         if (activeTermRef.current !== term) return;
 
-        if (fallback && isValidTermExplanation(fallback)) {
-          setExplanation({ def: fallback.def, app: fallback.app });
-          setExplanationThinking(fallback.thinking || '');
-          setErrorText(text.wordbank.loadKeptLast);
-          return;
+        if (!forceMode) {
+          const fallback = getCachedTermExplanation(cacheRef.current, term, language);
+          if (fallback && isValidTermExplanation(fallback)) {
+            setExplanation({ def: fallback.def, app: fallback.app });
+            setExplanationThinking(fallback.thinking || '');
+            setErrorText(text.wordbank.loadKeptLast);
+            setLexiconError(null);
+            return;
+          }
         }
 
-        const msg = error?.message || (locale === 'zh' ? '术语解释失败，请稍后重试。' : 'Term explanation failed. Please retry.');
-        setExplanation({
-          def: `${text.wordbank.loadFailed}${msg}`,
-          app: locale === 'zh' ? '请稍后重试。' : 'Please retry later.',
+        const rawMsg = error?.message || String(error);
+        const parsed = parseError(error);
+
+        setLexiconError({
+          code: parsed.code,
+          message: parsed.message,
+          raw: rawMsg,
+          isCustomProviderError: modeToUse === 'api' || parsed.isCustomProviderError,
+          term: term,
         });
+        setExplanation(null);
         setExplanationThinking('');
       } finally {
         if (activeTermRef.current === term) {
@@ -196,61 +268,76 @@ export default function WordbankClient() {
 
     inflightRef.current.set(key, task);
     await task;
-  }, [applyCachedExplanation, language, locale, persistExplanationCache, text.wordbank.loadFailed, text.wordbank.loadKeptLast]);
+  }, [applyCachedExplanation, language, locale, persistExplanationCache, text.wordbank.loadKeptLast]);
 
   useEffect(() => {
     if (!hydrated || !cacheReady || !activeTerm) return;
 
     if (applyCachedExplanation(activeTerm)) {
+      setLexiconError(null);
       return;
     }
+
+    setExplanation(null);
+    setExplanationThinking('');
+    setLexiconError(null);
 
     void fetchTermExplanation(activeTerm);
   }, [activeTerm, applyCachedExplanation, cacheReady, fetchTermExplanation, hydrated]);
 
+  // Background prefetching of term explanations using a queue sorted by category priority
   useEffect(() => {
-    if (!hydrated || !cacheReady) return;
+    if (!hydrated || !cacheReady || !mined.length) return;
 
-    const orderedTerms = mined.map((item) => item.term);
-    const queue = buildPrefetchQueue(orderedTerms, language, cacheRef.current);
+    let active = true;
 
-    let cancelled = false;
-    const initialDone = orderedTerms.length - queue.length;
-    setPrefetchProgress({
-      total: orderedTerms.length,
-      done: initialDone,
-      running: queue.length > 0,
-    });
-
-    if (!queue.length) return;
-
-    const run = async () => {
-      let done = initialDone;
-
-      for (const term of queue) {
-        if (cancelled) return;
-        await fetchTermExplanation(term);
-        if (cancelled) return;
-
-        done += 1;
-        setPrefetchProgress((prev) => ({
-          ...prev,
-          done,
-          running: done < prev.total,
-        }));
+    const runPrefetch = async () => {
+      const queue = buildPrefetchQueue(mined, language, cacheRef.current);
+      if (queue.length === 0) {
+        setPrefetchText(text.wordbank.prefetchDone);
+        return;
       }
 
-      if (!cancelled) {
-        setPrefetchProgress((prev) => ({ ...prev, running: false }));
+      setPrefetchText(`${text.wordbank.prefetching}0/${queue.length}`);
+
+      let completedCount = 0;
+      const totalCount = queue.length;
+
+      for (let i = 0; i < queue.length; i++) {
+        if (!active) break;
+
+        const item = queue[i];
+        
+        const cached = getCachedTermExplanation(cacheRef.current, item.term, language);
+        if (cached && isValidTermExplanation(cached)) {
+          completedCount++;
+          setPrefetchText(`${text.wordbank.prefetching}${completedCount}/${totalCount}`);
+          continue;
+        }
+
+        try {
+          await fetchTermExplanation(item.term);
+        } catch (err) {
+          console.warn(`Prefetch failed for term: ${item.term}`, err);
+        }
+
+        completedCount++;
+        if (active) {
+          if (completedCount === totalCount) {
+            setPrefetchText(text.wordbank.prefetchDone);
+          } else {
+            setPrefetchText(`${text.wordbank.prefetching}${completedCount}/${totalCount}`);
+          }
+        }
       }
     };
 
-    void run();
+    void runPrefetch();
 
     return () => {
-      cancelled = true;
+      active = false;
     };
-  }, [cacheReady, fetchTermExplanation, hydrated, language, mined]);
+  }, [hydrated, cacheReady, mined, language, fetchTermExplanation, text.wordbank]);
 
   const activeThread = useMemo(() => {
     if (!activeTerm) return null;
@@ -293,17 +380,19 @@ export default function WordbankClient() {
     try {
       let followupThinking = '';
       const history = [...followupMessages, userMessage];
+      const termMode = activeTermMode[term] || 'api';
       const textReply = await askTermFollowUp({
         term,
         language,
-        definition: explanation.def,
-        application: explanation.app,
+        definition: explanation?.def || '',
+        application: explanation?.app || '',
         thinking: explanationThinking,
         history,
         message,
         onMeta: (meta) => {
           followupThinking = meta?.thinking || '';
         },
+        forceMode: termMode,
       });
 
       const modelMessage: TermFollowupMessage = {
@@ -341,14 +430,7 @@ export default function WordbankClient() {
     return <Surface className="p-8 text-center text-sm text-ag-muted">{text.wordbank.empty}</Surface>;
   }
 
-  const prefetchText = prefetchProgress.total > 0
 
-    ? (
-      prefetchProgress.running
-        ? `${text.wordbank.prefetching}${prefetchProgress.done}/${prefetchProgress.total}`
-        : text.wordbank.prefetchDone
-    )
-    : '';
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -434,81 +516,182 @@ export default function WordbankClient() {
           {errorText ? <p className="mt-2 text-xs text-red-600 font-medium shrink-0">{errorText}</p> : null}
   
           <div className="flex-1 overflow-y-auto pr-1 space-y-5 ag-scrollbar mt-4">
-            {explanationThinking ? (
-              <section>
-                <details className="rounded-lg border border-ag-border bg-ag-surface/20 backdrop-blur-sm p-4 transition-colors hover:bg-ag-surface/30">
-                  <summary className="cursor-pointer text-xs font-semibold tracking-wide text-ag-muted select-none">
-                    {text.wordbank.viewThinking}
-                  </summary>
-                  <pre className="ag-scrollbar mt-3 max-h-56 overflow-y-auto whitespace-pre-wrap text-xs leading-6 text-ag-muted/95 bg-black/5 dark:bg-white/5 p-3 rounded-lg border border-ag-border/40">{explanationThinking}</pre>
-                </details>
-              </section>
-            ) : null}
-  
-            <section>
-              <h2 className="mb-2 text-xs font-bold tracking-wider uppercase text-ag-muted">{text.wordbank.definition}</h2>
-              <p className="rounded-lg border border-ag-border bg-ag-surface/25 backdrop-blur-sm p-4 text-sm leading-7 text-ag-text/95">
-                {explanation?.def || text.wordbank.noDefinition}
-              </p>
-            </section>
-  
-            <section>
-              <h2 className="mb-2 text-xs font-bold tracking-wider uppercase text-ag-muted">{text.wordbank.application}</h2>
-              <p className="rounded-lg border border-ag-border bg-ag-surface/25 backdrop-blur-sm p-4 text-sm leading-7 text-ag-text/95">
-                {explanation?.app || text.wordbank.noApplication}
-              </p>
-            </section>
-  
-            <section>
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-xs font-bold tracking-wider uppercase text-ag-muted">{text.wordbank.followupTitle}</h2>
-                <button
-                  onClick={handleClearCurrentThread}
-                  className="rounded-md border border-ag-border px-2.5 py-1 text-xs text-ag-muted hover:border-ag-accent/40 hover:text-ag-accent transition-all duration-200"
-                >
-                  {text.wordbank.clearFollowup}
-                </button>
-              </div>
-  
-              <div className="ag-scrollbar max-h-[220px] space-y-2 overflow-y-auto rounded-lg border border-ag-border bg-ag-surface/20 backdrop-blur-sm p-3">
-                {followupMessages.length === 0 ? (
-                  <p className="text-sm text-ag-muted/80 text-center py-6">{text.wordbank.followupEmpty}</p>
-                ) : (
-                  followupMessages.map((message) => (
-                    <div key={message.id} className={`${message.role === 'user' ? 'ml-8' : 'mr-8'} space-y-2`}>
-                      <div className={`rounded-xl px-3.5 py-2 text-sm shadow-sm border ${
-                        message.role === 'user'
-                          ? 'bg-ag-accent/15 text-ag-text border-ag-accent/20'
-                          : 'bg-ag-surface/40 text-ag-text/95 border-ag-border/50'
-                      }`}>
-                        {message.text}
-                      </div>
-                      {message.role === 'model' && message.thinking ? (
-                        <details className="rounded-lg border border-ag-border bg-ag-surface/10 p-2.5">
-                          <summary className="cursor-pointer text-xs text-ag-muted font-medium select-none">{text.wordbank.viewThinking}</summary>
-                          <pre className="ag-scrollbar mt-2 max-h-44 overflow-y-auto whitespace-pre-wrap text-[11px] leading-5 text-ag-muted/95 bg-black/5 dark:bg-white/5 p-2 rounded-md">{message.thinking}</pre>
-                        </details>
-                      ) : null}
+            {lexiconError && lexiconError.term === activeTerm ? (
+              <motion.div
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 sm:p-5 text-xs text-red-600 dark:text-red-400 space-y-3 relative w-full overflow-hidden"
+              >
+                <div className="flex items-start justify-between pr-4">
+                  <div className="flex items-center gap-2">
+                    <span>⚠️</span>
+                    <p className="font-semibold text-sm">
+                      {lexiconError.isCustomProviderError 
+                        ? (locale === 'zh' ? '自定义大模型术语解释服务报错' : 'Custom AI Term Explanation Service Error')
+                        : (locale === 'zh' ? '获取术语解释遇到问题' : 'Term Explanation Request Encountered an Issue')
+                      }
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 bg-red-500/5 dark:bg-red-500/10 p-3 rounded-lg border border-red-500/10 break-all break-words">
+                  <p className="font-medium text-red-700 dark:text-red-300">
+                    {locale === 'zh' ? '错误代码 (Error Code): ' : 'Error Code: '}
+                    <span className="font-mono bg-red-500/10 px-1 py-0.5 rounded text-[11px] font-semibold">{lexiconError.code}</span>
+                  </p>
+                  <p className="leading-relaxed mt-1 text-red-600/90 dark:text-red-400/90">
+                    {locale === 'zh' ? '详细原因: ' : 'Reason: '}
+                    {lexiconError.message}
+                  </p>
+                  {lexiconError.raw && lexiconError.raw !== lexiconError.message && (
+                    <details className="mt-2 text-[10px] text-red-500/70">
+                      <summary className="cursor-pointer hover:underline outline-none">
+                        {locale === 'zh' ? '查看原始错误日志' : 'View raw error log'}
+                      </summary>
+                      <pre className="mt-1 p-2 bg-black/5 dark:bg-black/20 rounded overflow-x-auto whitespace-pre-wrap font-mono text-[9px] max-h-32">
+                        {lexiconError.raw}
+                      </pre>
+                    </details>
+                  )}
+                </div>
+
+                {lexiconError.isCustomProviderError ? (
+                  <>
+                    <p className="text-[11px] text-ag-muted/95 leading-normal">
+                      {locale === 'zh' 
+                        ? '提示：如果您使用的是第三方大模型代理服务，报错显示底层的 Gemini 额度超限（如 429 报错及 gemini-2.5-flash 提示），这通常说明代理商后端的 Gemini 免费额度已耗尽。您可以选择：' 
+                        : 'Tip: If you are using a proxy service, it might be due to its backend official Gemini quota exhaustion. You can:'}
+                    </p>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <button
+                        onClick={() => router.push('/settings')}
+                        className="rounded-lg bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 font-bold text-xs transition duration-200 shadow-sm"
+                      >
+                        {locale === 'zh' ? '⚙️ 前往设置检查配置' : '⚙️ Check Config in Settings'}
+                      </button>
+                      <button
+                        onClick={() => void fetchTermExplanation(activeTerm, 'demo')}
+                        className="rounded-lg border border-red-500/30 hover:border-red-500/50 bg-white/5 hover:bg-red-500/5 text-red-700 dark:text-red-300 px-3 py-1.5 font-bold text-xs transition duration-200"
+                      >
+                        {locale === 'zh' ? '✨ 尝试使用 Gemini 免费额度运行' : '✨ Try Platform Gemini Free Quota'}
+                      </button>
                     </div>
-                  ))
+                  </>
+                ) : (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {(String(lexiconError.code).includes('API_KEY') || String(lexiconError.code).includes('CONFIGURED') || lexiconError.message.includes('503')) ? (
+                      <button
+                        onClick={() => router.push('/settings')}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-red-700 dark:text-red-300 hover:underline"
+                      >
+                        {locale === 'zh' ? '前往设置页面配置 API Key →' : 'Go to Settings to configure API Key →'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => void fetchTermExplanation(activeTerm, 'demo')}
+                        className="rounded-lg border border-red-500/30 hover:border-red-500/50 bg-white/5 hover:bg-red-500/5 text-red-700 dark:text-red-300 px-3 py-1.5 font-bold text-xs transition duration-200"
+                      >
+                        {locale === 'zh' ? '✨ 尝试使用 Gemini 免费额度运行' : '✨ Try Platform Gemini Free Quota'}
+                      </button>
+                    )}
+                  </div>
                 )}
-              </div>
-  
-              <div className="mt-3 flex gap-2 pb-1">
-                <input
-                  value={followupInput}
-                  onChange={(e) => setFollowupInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') void handleFollowupSend();
-                  }}
-                  placeholder={text.wordbank.followupPlaceholder}
-                  className="flex-1 rounded-lg border border-ag-border bg-ag-surface/40 focus:bg-ag-surface/90 px-3 py-2 text-sm outline-none transition duration-200 focus:border-ag-accent"
-                />
-                <PrimaryButton onClick={() => void handleFollowupSend()} disabled={followupSending || loading}>
-                  {followupSending ? text.wordbank.followupSending : text.wordbank.followupSend}
-                </PrimaryButton>
-              </div>
-            </section>
+              </motion.div>
+            ) : (
+              <>
+                {explanationThinking ? (
+                  <section>
+                    <details className="rounded-lg border border-ag-border bg-ag-surface/20 backdrop-blur-sm p-4 transition-colors hover:bg-ag-surface/30">
+                      <summary className="cursor-pointer text-xs font-semibold tracking-wide text-ag-muted select-none">
+                        {text.wordbank.viewThinking}
+                      </summary>
+                      <pre className="ag-scrollbar mt-3 max-h-56 overflow-y-auto whitespace-pre-wrap text-xs leading-6 text-ag-muted/95 bg-black/5 dark:bg-white/5 p-3 rounded-lg border border-ag-border/40">{explanationThinking}</pre>
+                    </details>
+                  </section>
+                ) : null}
+      
+                <section>
+                  <h2 className="mb-2 text-xs font-bold tracking-wider uppercase text-ag-muted">{text.wordbank.definition}</h2>
+                  <p className="rounded-lg border border-ag-border bg-ag-surface/25 backdrop-blur-sm p-4 text-sm leading-7 text-ag-text/95">
+                    {explanation?.def || text.wordbank.noDefinition}
+                  </p>
+                </section>
+      
+                <section>
+                  <h2 className="mb-2 text-xs font-bold tracking-wider uppercase text-ag-muted">{text.wordbank.application}</h2>
+                  <p className="rounded-lg border border-ag-border bg-ag-surface/25 backdrop-blur-sm p-4 text-sm leading-7 text-ag-text/95">
+                    {explanation?.app || text.wordbank.noApplication}
+                  </p>
+                </section>
+      
+                <section>
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <h2 className="text-xs font-bold tracking-wider uppercase text-ag-muted">{text.wordbank.followupTitle}</h2>
+                    <button
+                      onClick={handleClearCurrentThread}
+                      className="rounded-md border border-ag-border px-2.5 py-1 text-xs text-ag-muted hover:border-ag-accent/40 hover:text-ag-accent transition-all duration-200"
+                    >
+                      {text.wordbank.clearFollowup}
+                    </button>
+                  </div>
+      
+                  <div className="ag-scrollbar max-h-[220px] space-y-2 overflow-y-auto rounded-lg border border-ag-border bg-ag-surface/20 backdrop-blur-sm p-3">
+                    {followupMessages.length === 0 ? (
+                      <p className="text-sm text-ag-muted/80 text-center py-6">{text.wordbank.followupEmpty}</p>
+                    ) : (
+                      followupMessages.map((message) => (
+                        <div key={message.id} className={`${message.role === 'user' ? 'ml-8' : 'mr-8'} space-y-2`}>
+                          <div className={`rounded-xl px-3.5 py-2 text-sm shadow-sm border ${
+                            message.role === 'user'
+                              ? 'bg-ag-accent/15 text-ag-text border-ag-accent/20'
+                              : 'bg-ag-surface/40 text-ag-text/95 border-ag-border/50'
+                          }`}>
+                            {message.role === 'user' ? (
+                              message.text
+                            ) : (
+                              <ReactMarkdown
+                                /* eslint-disable @typescript-eslint/no-unused-vars */
+                                components={{
+                                  ul: ({ node, ...props }) => <ul className="list-disc pl-4 space-y-1 my-1" {...props} />,
+                                  ol: ({ node, ...props }) => <ol className="list-decimal pl-4 space-y-1 my-1" {...props} />,
+                                  li: ({ node, ...props }) => <li className="my-0.5" {...props} />,
+                                  p: ({ node, ...props }) => <p className="mb-2 last:mb-0 leading-relaxed" {...props} />,
+                                  strong: ({ node, ...props }) => <strong className="font-semibold text-ag-text" {...props} />,
+                                }}
+                                /* eslint-enable @typescript-eslint/no-unused-vars */
+                              >
+                                {message.text}
+                              </ReactMarkdown>
+                            )}
+                          </div>
+                          {message.role === 'model' && message.thinking ? (
+                            <details className="rounded-lg border border-ag-border bg-ag-surface/10 p-2.5">
+                              <summary className="cursor-pointer text-xs text-ag-muted font-medium select-none">{text.wordbank.viewThinking}</summary>
+                              <pre className="ag-scrollbar mt-2 max-h-44 overflow-y-auto whitespace-pre-wrap text-[11px] leading-5 text-ag-muted/95 bg-black/5 dark:bg-white/5 p-2 rounded-md">{message.thinking}</pre>
+                            </details>
+                          ) : null}
+                        </div>
+                      ))
+                    )}
+                  </div>
+      
+                  <div className="mt-3 flex gap-2 pb-1">
+                    <input
+                      value={followupInput}
+                      onChange={(e) => setFollowupInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void handleFollowupSend();
+                      }}
+                      placeholder={text.wordbank.followupPlaceholder}
+                      className="flex-1 rounded-lg border border-ag-border bg-ag-surface/40 focus:bg-ag-surface/90 px-3 py-2 text-sm outline-none transition duration-200 focus:border-ag-accent"
+                    />
+                    <PrimaryButton onClick={() => void handleFollowupSend()} disabled={followupSending || loading}>
+                      {followupSending ? text.wordbank.followupSending : text.wordbank.followupSend}
+                    </PrimaryButton>
+                  </div>
+                </section>
+              </>
+            )}
           </div>
         </Surface>
       </motion.div>

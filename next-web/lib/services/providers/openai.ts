@@ -1,6 +1,6 @@
 import { AnalysisResult, UserSettings, ChatMessage, PromptSegment, DimensionKey } from '../../types';
-import { AIProvider, TermExplanation, getApiConfig, getCurrentModel } from './types';
-import { getMasterAnalysisPrompt } from './masterPrompt';
+import { AIProvider, TermExplanation, getApiConfig, getCurrentModel, getCurrentTextModel } from './types';
+import { getMasterAnalysisPrompt, getExplainTermPrompt } from './masterPrompt';
 import { safeParseJSON } from '../../utils/jsonParser';
 import { getApiError, getGenericApiError } from '../../utils/apiErrorMessages';
 
@@ -26,6 +26,9 @@ export class OpenAIProvider implements AIProvider {
     }
 
     private getModelName(hasImage: boolean): string {
+        if (!hasImage) {
+            return getCurrentTextModel();
+        }
         const model = getCurrentModel();
         const modelLower = model.toLowerCase().trim();
         if (hasImage) {
@@ -61,10 +64,14 @@ export class OpenAIProvider implements AIProvider {
                 model: modelName,
                 messages: [
                     {
+                        role: 'system',
+                        content: getMasterAnalysisPrompt(settings)
+                    },
+                    {
                         role: 'user',
                         content: [
                             { type: 'image_url', image_url: { url: imageData } },
-                            { type: 'text', text: getMasterAnalysisPrompt(settings) }
+                            { type: 'text', text: "Analyze this image according to the system instructions. Output STRICT JSON." }
                         ]
                     }
                 ],
@@ -98,12 +105,7 @@ export class OpenAIProvider implements AIProvider {
     async explainTerm(term: string, language: string): Promise<TermExplanation> {
         const modelName = this.getModelName(false);
 
-        const prompt = `As an expert Art Director, explain the visual style/term: "${term}".
-Target Language: ${language}
-Rules: Keep it VERY concise.
-"def": Definition (Max 100 words).
-"app": Application (Max 100 words).
-Output JSON: { "def": "...", "app": "..." }`;
+        const prompt = getExplainTermPrompt(term, language);
 
         const response = await fetch(this.getApiUrl(), {
             method: 'POST',

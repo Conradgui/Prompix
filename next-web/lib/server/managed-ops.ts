@@ -9,10 +9,12 @@ import {
   UserSettings,
 } from '../types';
 import { safeParseJSON } from '../utils/jsonParser';
-import { getDimensionPrompt, getMasterAnalysisPrompt, getTranslationPrompt } from '../services/providers/masterPrompt';
-import { buildVisionPrompt, callMiniMax, resolveMiniMaxConfig } from './minimax';
-import { normalizeModelOutput, sanitizeThinkingText } from './model-output';
-import { OpenAIServerProvider, ClaudeServerProvider, ServerProvider } from './provider-factory';
+import {
+  OpenAIServerProvider,
+  ClaudeServerProvider,
+  GeminiServerProvider,
+  ServerProvider,
+} from './provider-factory';
 
 const cleanServerConfig = (cfg: Partial<ApiConfig>): ApiConfig => {
   let baseUrl = (cfg.baseUrl || 'https://api.openai.com/v1').trim().replace(/\/+$/, '');
@@ -47,7 +49,29 @@ export const getServerProvider = (customConfig?: Partial<ApiConfig> | null): Ser
   if (provider === 'claude') {
     return new ClaudeServerProvider(custom);
   }
+  if (provider === 'gemini') {
+    return new GeminiServerProvider(custom);
+  }
   return null;
+};
+
+export const getManagedProvider = (customConfig?: Partial<ApiConfig> | null): ServerProvider => {
+  const provider = getServerProvider(customConfig);
+  if (provider) return provider;
+
+  const apiKey = (process.env.GEMINI_API_KEY || '').trim();
+  if (apiKey) {
+    return new GeminiServerProvider({
+      provider: 'gemini',
+      apiKey,
+      model: (process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim(),
+      baseUrl: '',
+      providerLabel: 'Gemini',
+      groupId: '',
+    });
+  }
+
+  throw new Error('MANAGED_PROVIDER_NOT_CONFIGURED');
 };
 
 const emptySegment = (): PromptSegment => ({ original: '', translated: '' });
@@ -246,266 +270,61 @@ const normalizeAnalysis = (raw: Partial<AnalysisResult> | Record<string, any>): 
   };
 };
 
-const toManagedMeta = (thinkingText: string): ManagedMeta | undefined => {
-  const thinking = sanitizeThinkingText(thinkingText || '');
-  if (!thinking) return undefined;
-  return { thinking };
-};
-
-interface ExplainTermParsed {
-  def: string;
-  app: string;
-}
-
-const parseExplainTerm = (text: string): ExplainTermParsed => {
-  const parsed = safeParseJSON<Partial<ExplainTermParsed>>(text, { def: '', app: '' });
-  return {
-    def: String(parsed?.def || '').trim(),
-    app: String(parsed?.app || '').trim(),
-  };
-};
-
-const isExplainTermValid = (value: ExplainTermParsed): boolean => {
-  return Boolean(value.def && value.app);
-};
-
-const buildExplainTermPrompt = (term: string, language: string, strict = false): string => {
-  if (!strict) {
-    return `你是一名资深视觉总监。请解释术语 "${term}"。\n目标语言：${language}\n仅输出 JSON：{"def":"...","app":"..."}。`;
-  }
-
-  return [
-    `你是一名资深视觉总监，请解释术语 "${term}"。`,
-    `目标语言：${language}。`,
-    '必须只输出一个 JSON 对象，禁止输出任何额外文字、标签或代码块。',
-    'JSON 结构固定为：{"def":"...","app":"..."}',
-    '约束：',
-    '1. def 与 app 均不能为空。',
-    '2. def = 简洁定义；app = 在视觉创作中的具体应用方式。',
-  ].join('\n');
-};
-
-export const analyzeWithMiniMax = async (
+export const analyzeWithProvider = async (
   image: string,
   settings: UserSettings,
   customConfig?: Partial<ApiConfig> | null,
 ): Promise<{ analysis: AnalysisResult; meta?: ManagedMeta }> => {
-  const provider = getServerProvider(customConfig);
-  if (provider) {
-    const parsed = await provider.analyzeImage(image, settings);
-    const analysis = normalizeAnalysis(parsed);
-    return { analysis };
-  }
-
-  const config = resolveMiniMaxConfig(customConfig);
-  const prompt = getMasterAnalysisPrompt(settings);
-  const content = buildVisionPrompt(image, prompt);
-  const text = await callMiniMax(config, [{ role: 'user', content }], { maxTokens: 2300 });
-  const normalized = normalizeModelOutput(text);
-  const parsed = safeParseJSON<AnalysisResult>(normalized.finalText, buildEmptyAnalysis());
-
-  let analysis = normalizeAnalysis(parsed);
-  if (!hasAnySegmentContent(analysis) && normalized.finalText) {
-    const repaired = normalizeAnalysis({ description: normalized.finalText });
-    if (hasAnySegmentContent(repaired)) {
-      analysis = repaired;
-    }
-  }
-
-  return {
-    analysis,
-    meta: toManagedMeta(normalized.thinkingText),
-  };
+  const provider = getManagedProvider(customConfig);
+  const parsed = await provider.analyzeImage(image, settings);
+  const analysis = normalizeAnalysis(parsed);
+  return { analysis };
 };
 
-export const regenerateWithMiniMax = async (
+export const regenerateWithProvider = async (
   image: string,
   dimension: DimensionKey,
   settings: UserSettings,
   customConfig?: Partial<ApiConfig> | null,
 ): Promise<{ segment: PromptSegment; meta?: ManagedMeta }> => {
-  const provider = getServerProvider(customConfig);
-  if (provider) {
-    const segment = await provider.regenerateDimension(image, dimension, settings);
-    return { segment };
-  }
-
-  const config = resolveMiniMaxConfig(customConfig);
-  const system = getDimensionPrompt(dimension, settings);
-  const content = buildVisionPrompt(image, '请严格遵循系统指令输出 JSON。');
-  const text = await callMiniMax(config, [
-    { role: 'system', content: system },
-    { role: 'user', content },
-  ], { maxTokens: 900 });
-  const normalized = normalizeModelOutput(text);
-  const parsed = safeParseJSON<PromptSegment>(normalized.finalText, emptySegment());
-  return {
-    segment: {
-      original: parsed.original || '',
-      translated: parsed.translated || '',
-    },
-    meta: toManagedMeta(normalized.thinkingText),
-  };
+  const provider = getManagedProvider(customConfig);
+  const segment = await provider.regenerateDimension(image, dimension, settings);
+  return { segment };
 };
 
-export const explainTermWithMiniMax = async (
+export const explainTermWithProvider = async (
   term: string,
   language: string,
   customConfig?: Partial<ApiConfig> | null,
 ): Promise<{ explanation: { def: string; app: string }; meta?: ManagedMeta }> => {
-  const provider = getServerProvider(customConfig);
-  if (provider) {
-    const explanation = await provider.explainTerm(term, language);
-    return { explanation };
-  }
-
-  const config = resolveMiniMaxConfig(customConfig);
-  const thoughts: string[] = [];
-
-  const first = await callMiniMax(
-    config,
-    [{ role: 'user', content: buildExplainTermPrompt(term, language, false) }],
-    { maxTokens: 700 },
-  );
-  const normalizedFirst = normalizeModelOutput(first);
-  if (normalizedFirst.thinkingText) thoughts.push(normalizedFirst.thinkingText);
-  let parsed = parseExplainTerm(normalizedFirst.finalText);
-
-  if (!isExplainTermValid(parsed)) {
-    const second = await callMiniMax(
-      config,
-      [{ role: 'user', content: buildExplainTermPrompt(term, language, true) }],
-      { maxTokens: 700 },
-    );
-    const normalizedSecond = normalizeModelOutput(second);
-    if (normalizedSecond.thinkingText) thoughts.push(normalizedSecond.thinkingText);
-    parsed = parseExplainTerm(normalizedSecond.finalText);
-  }
-
-  if (!isExplainTermValid(parsed)) {
-    throw new Error('术语解释暂时不可用，请稍后重试。');
-  }
-
-  return {
-    explanation: parsed,
-    meta: toManagedMeta(thoughts.join('\n\n')),
-  };
+  const provider = getManagedProvider(customConfig);
+  const explanation = await provider.explainTerm(term, language);
+  return { explanation };
 };
 
-export const translateWithMiniMax = async (
+export const translateWithProvider = async (
   text: string,
   language: string,
   customConfig?: Partial<ApiConfig> | null,
 ): Promise<{ translated: string; meta?: ManagedMeta }> => {
-  const provider = getServerProvider(customConfig);
-  if (provider) {
-    const translated = await provider.translateText(text, language);
-    return { translated };
-  }
-
-  const config = resolveMiniMaxConfig(customConfig);
-  const prompt = getTranslationPrompt(text, language);
-  const response = await callMiniMax(config, [{ role: 'user', content: prompt }], { maxTokens: 500 });
-  const normalized = normalizeModelOutput(response);
-  const parsed = safeParseJSON<{ translated: string }>(normalized.finalText, { translated: '' });
-  return {
-    translated: parsed.translated || '',
-    meta: toManagedMeta(normalized.thinkingText),
-  };
+  const provider = getManagedProvider(customConfig);
+  const translated = await provider.translateText(text, language);
+  return { translated };
 };
 
-const mapHistory = (history: ChatMessage[]): Array<{ role: 'user' | 'assistant'; content: string }> => {
-  return history
-    .slice(-12)
-    .map((msg) => ({
-      role: msg.role === 'user' ? 'user' : 'assistant',
-      content: msg.text || '',
-    }));
-};
-
-const buildSystemPrompt = (settings?: UserSettings): string => {
-  return `你是 Prompix 的视觉分析助手。回答语言使用 ${settings?.systemLanguage || 'Chinese'}。回答要简洁、专业、可执行。`;
-};
-
-const injectImageContext = (
-  image: string | undefined,
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
-): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> => {
-  const next: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
-  if (!image) return messages;
-
-  next.push({
-    role: 'user',
-    content: buildVisionPrompt(image, '这是当前对话参考图片。请基于它回答后续问题。'),
-  });
-
-  return [...next, ...messages];
-};
-
-export const chatWithMiniMax = async (params: {
+export const chatWithProvider = async (params: {
   history: ChatMessage[];
   message: string;
   image?: string;
   settings?: UserSettings;
   customConfig?: Partial<ApiConfig> | null;
 }): Promise<{ text: string; meta?: ManagedMeta }> => {
-  const provider = getServerProvider(params.customConfig);
-  if (provider) {
-    const chatResult = await provider.chat(params.history, params.message, params.image, params.settings);
-    return { text: chatResult.text };
-  }
-
-  const config = resolveMiniMaxConfig(params.customConfig);
-  const messages = mapHistory(params.history);
-  const withImage = injectImageContext(params.image, messages);
-
-  const result = await callMiniMax(config, [
-    { role: 'system', content: buildSystemPrompt(params.settings) },
-    ...withImage,
-    { role: 'user', content: params.message },
-  ], { maxTokens: 1800 });
-
-  const normalized = normalizeModelOutput(result);
-  return {
-    text: normalized.finalText,
-    meta: toManagedMeta(normalized.thinkingText),
-  };
+  const provider = getManagedProvider(params.customConfig);
+  const chatResult = await provider.chat(params.history, params.message, params.image, params.settings);
+  return { text: chatResult.text };
 };
 
-const mapTermFollowupHistory = (
-  history: TermFollowupMessage[],
-): Array<{ role: 'user' | 'assistant'; content: string }> => {
-  return history
-    .slice(-16)
-    .map((message) => ({
-      role: message.role === 'user' ? 'user' : 'assistant',
-      content: message.text || '',
-    }));
-};
-
-const buildTermFollowupSystemPrompt = (params: {
-  term: string;
-  language: string;
-  definition: string;
-  application: string;
-  thinking?: string;
-}): string => {
-  return [
-    '你是 Prompix 术语学习助手。',
-    `目标语言：${params.language || 'Chinese'}。`,
-    `当前术语：${params.term}。`,
-    `术语定义：${params.definition || '（暂无）'}。`,
-    `术语应用：${params.application || '（暂无）'}。`,
-    params.thinking ? `模型思考摘录：${params.thinking}` : '',
-    '回答要求：',
-    '1. 简洁、专业、可执行，不重复模板句。',
-    '2. 优先回答用户追问，并给出可直接落地的表达建议。',
-  ]
-    .filter(Boolean)
-    .join('\n');
-};
-
-export const termFollowupWithMiniMax = async (params: {
+export const termFollowupWithProvider = async (params: {
   term: string;
   language: string;
   definition: string;
@@ -515,18 +334,15 @@ export const termFollowupWithMiniMax = async (params: {
   message: string;
   customConfig?: Partial<ApiConfig> | null;
 }): Promise<{ text: string; meta?: ManagedMeta }> => {
-  const config = resolveMiniMaxConfig(params.customConfig);
-  const history = mapTermFollowupHistory(params.history || []);
-  const system = buildTermFollowupSystemPrompt(params);
-  const response = await callMiniMax(config, [
-    { role: 'system', content: system },
-    ...history,
-    { role: 'user', content: params.message },
-  ], { maxTokens: 1000 });
-
-  const normalized = normalizeModelOutput(response);
-  return {
-    text: normalized.finalText,
-    meta: toManagedMeta(normalized.thinkingText),
-  };
+  const provider = getManagedProvider(params.customConfig);
+  const result = await provider.termFollowup({
+    term: params.term,
+    language: params.language,
+    definition: params.definition,
+    application: params.application,
+    thinking: params.thinking,
+    history: params.history,
+    message: params.message,
+  });
+  return { text: result.text };
 };

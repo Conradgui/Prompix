@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/server/rate-limit';
-import { explainTermWithMiniMax } from '@/lib/server/managed-ops';
+import { explainTermWithProvider } from '@/lib/server/managed-ops';
 import { canUseCustomApiInRequest, getApiModeBlockedMessage, resolveRequestRuntimeMode } from '@/lib/server/runtime-policy';
 
 export async function POST(req: NextRequest) {
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '术语不能为空。' }, { status: 400 });
     }
 
-    const result = await explainTermWithMiniMax(term, language, apiConfig);
+    const result = await explainTermWithProvider(term, language, apiConfig);
     return NextResponse.json(result);
   } catch (error: any) {
     const message = error?.message || '术语解释失败，请稍后重试。';

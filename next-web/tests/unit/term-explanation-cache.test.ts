@@ -35,5 +35,17 @@ describe('term explanation cache', () => {
     expect(isValidTermExplanation({ def: 'x', app: '' })).toBe(false);
     expect(isValidTermExplanation({ def: '', app: 'y' })).toBe(false);
   });
+
+  it('bypasses cache and returns static preset explanation for known terms', () => {
+    const cached = getCachedTermExplanation({}, 'Memphis Style', 'English');
+    expect(cached).not.toBeNull();
+    expect(cached?.term).toBe('Memphis Style');
+    expect(cached?.def).toContain('bold, vibrant colors');
+
+    const cachedZh = getCachedTermExplanation({}, '孟菲斯风格', 'Chinese');
+    expect(cachedZh).not.toBeNull();
+    expect(cachedZh?.term).toBe('孟菲斯风格');
+    expect(cachedZh?.def).toContain('鲜艳的色彩');
+  });
 });
 

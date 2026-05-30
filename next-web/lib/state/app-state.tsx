@@ -25,7 +25,7 @@ import {
   deleteHistoryImage,
 } from '@/lib/state/storage';
 import { mergeHistoryWithDedupe } from '@/lib/utils/historyArchive';
-import { getHistoryAnalysisByLanguage, resolveHistoryPromptLanguage, upsertHistoryAnalysisVariant } from '@/lib/utils/analysisLanguage';
+import { getHistoryAnalysisByLanguage, resolveHistoryPromptLanguage, upsertHistoryAnalysisVariant, swapAnalysisResultLanguage } from '@/lib/utils/analysisLanguage';
 
 interface AppStateContextValue {
   hydrated: boolean;
@@ -43,7 +43,7 @@ interface AppStateContextValue {
   setCurrentAnalyzeThinking: (thinking: string | null) => void;
   setRuntimeModeAction: (mode: RuntimeMode) => void;
   setCurrentPromptLanguage: (language: PromptOutputLanguage) => Promise<void>;
-  uploadImages: (files: File[]) => Promise<void>;
+  uploadImages: (files: File[], forceMode?: RuntimeMode) => Promise<void>;
   selectHistoryItem: (item: HistoryItem) => Promise<void>;
   clearCurrent: () => void;
   deleteHistoryItems: (ids: string[]) => Promise<void>;
@@ -92,7 +92,7 @@ const compressImage = (file: File): Promise<string> => {
 
       ctx.drawImage(img, 0, 0, width, height);
       URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL('image/jpeg', 0.68));
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
     };
 
     img.onerror = (err) => {
@@ -109,7 +109,7 @@ const createThumbnail = (base64Image: string): Promise<string> => {
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      const maxDim = 120; // 120px for thumbnails
+      const maxDim = 400; // 400px for high-res previews
       let width = img.width;
       let height = img.height;
 
@@ -135,7 +135,7 @@ const createThumbnail = (base64Image: string): Promise<string> => {
       }
 
       ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', 0.5)); // Low quality jpeg
+      resolve(canvas.toDataURL('image/jpeg', 0.85)); // High quality jpeg
     };
     img.onerror = () => {
       resolve(base64Image); // Fallback to full image on loading error
@@ -245,6 +245,24 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         if (loadedHistory) {
           const migrated = await migrateHistoryItems(loadedHistory);
           setHistoryItems(migrated);
+
+          // 初始化挂载时，如果本地有历史记录，自动激活最近一次的卡片，保持页面视觉一致性
+          if (migrated.length > 0) {
+            const latestItem = migrated[0];
+            const prefLanguage = loadedSettings?.promptOutputLanguage === 'zh' ? 'zh' : 'en';
+            const language = resolveHistoryPromptLanguage(latestItem, prefLanguage);
+            const analysis = getHistoryAnalysisByLanguage(latestItem, language) || latestItem.analysis;
+            let fullImage = latestItem.imageUrl;
+            if (!fullImage || !fullImage.startsWith('data:image/')) {
+              fullImage = await loadHistoryImage(latestItem.id) || latestItem.thumbnailUrl || '';
+            }
+            setActiveWorkspace({
+              historyId: latestItem.id,
+              image: fullImage,
+              analysis,
+              thinking: null,
+            });
+          }
         }
       } catch (error) {
         console.error('Failed to hydrate app state', error);
@@ -279,7 +297,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     setRuntimeModeState(next);
   }, []);
 
-  const uploadImages = useCallback(async (files: File[]) => {
+  const clearCurrent = useCallback(() => {
+    setActiveWorkspace({
+      historyId: null,
+      image: null,
+      analysis: null,
+      thinking: null,
+    });
+  }, []);
+
+  const uploadImages = useCallback(async (files: File[], forceMode?: RuntimeMode) => {
     if (!files.length) return;
 
     clearCurrent();
@@ -300,11 +327,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           ...prev,
           thinking: meta?.thinking || null,
         }));
-      });
+      }, forceMode);
 
       const firstId = Date.now().toString();
       // Save full image to separate store
       await saveHistoryImage(firstId, firstImage);
+
+      const oppositeLang: PromptOutputLanguage = activePromptLanguage === 'zh' ? 'en' : 'zh';
+      const oppositeAnalysis = swapAnalysisResultLanguage(firstAnalysis);
 
       const firstItem: HistoryItem = {
         id: firstId,
@@ -315,6 +345,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         promptLanguage: activePromptLanguage,
         analysisVariants: {
           [activePromptLanguage]: firstAnalysis,
+          [oppositeLang]: oppositeAnalysis,
         },
         read: true,
         isFavorite: false,
@@ -327,12 +358,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
       for (let i = 0; i < rest.length; i += 1) {
         try {
-          const analyzed = await analyzeImage(rest[i], settings);
+          const analyzed = await analyzeImage(rest[i], settings, undefined, forceMode);
           const restId = `${Date.now()}-${i}`;
           const restThumbnail = await createThumbnail(rest[i]);
 
           // Save full image to separate store
           await saveHistoryImage(restId, rest[i]);
+
+          const loopOppositeLang: PromptOutputLanguage = activePromptLanguage === 'zh' ? 'en' : 'zh';
+          const loopOppositeAnalysis = swapAnalysisResultLanguage(analyzed);
 
           restItems.push({
             id: restId,
@@ -343,6 +377,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             promptLanguage: activePromptLanguage,
             analysisVariants: {
               [activePromptLanguage]: analyzed,
+              [loopOppositeLang]: loopOppositeAnalysis,
             },
             read: false,
             isFavorite: false,
@@ -370,7 +405,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         setAnalysisProgress(0);
       }, 250);
     }
-  }, [getPreferredPromptLanguage, historyItems, persistHistory, settings]);
+  }, [clearCurrent, getPreferredPromptLanguage, historyItems, persistHistory, settings]);
 
   const selectHistoryItem = useCallback(async (item: HistoryItem) => {
     const now = Date.now();
@@ -397,14 +432,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     });
   }, [getPreferredPromptLanguage, historyItems, persistHistory]);
 
-  const clearCurrent = useCallback(() => {
-    setActiveWorkspace({
-      historyId: null,
-      image: null,
-      analysis: null,
-      thinking: null,
-    });
-  }, []);
+
 
   const clearLegacyHistoryAndWordbankCacheAction = useCallback(async () => {
     await clearLegacyHistoryAndWordbankCache();

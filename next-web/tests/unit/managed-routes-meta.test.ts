@@ -10,8 +10,19 @@ vi.mock('@/lib/server/runtime-policy', () => ({
   getApiModeBlockedMessage: vi.fn(() => 'blocked'),
 }));
 
+const mockProvider = {
+  chatStream: vi.fn(async () => {
+    return new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('chat-final'));
+        controller.close();
+      }
+    });
+  })
+};
+
 vi.mock('@/lib/server/managed-ops', () => ({
-  analyzeWithMiniMax: vi.fn(async () => ({
+  analyzeWithProvider: vi.fn(async () => ({
     analysis: {
       description: 'ok',
       structuredPrompts: {
@@ -25,11 +36,7 @@ vi.mock('@/lib/server/managed-ops', () => ({
     },
     meta: { thinking: 'analyze-thinking' },
   })),
-  chatWithMiniMax: vi.fn(async () => ({
-    text: 'chat-final',
-    meta: { thinking: 'chat-thinking' },
-  })),
-  getServerProvider: vi.fn(() => null),
+  getManagedProvider: vi.fn(() => mockProvider),
 }));
 
 import { POST as analyzePost } from '@/app/api/managed/analyze/route';
@@ -54,7 +61,7 @@ describe('managed route meta pass-through', () => {
     expect(data.meta?.thinking).toBe('analyze-thinking');
   });
 
-  it('returns meta.thinking for chat route', async () => {
+  it('returns text stream for chat route', async () => {
     const req = new Request('http://localhost/api/managed/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

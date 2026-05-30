@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/server/rate-limit';
-import { termFollowupWithMiniMax } from '@/lib/server/managed-ops';
+import { termFollowupWithProvider } from '@/lib/server/managed-ops';
 import { canUseCustomApiInRequest, getApiModeBlockedMessage, resolveRequestRuntimeMode } from '@/lib/server/runtime-policy';
 
 export async function POST(req: NextRequest) {
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '追问内容不能为空。' }, { status: 400 });
     }
 
-    const result = await termFollowupWithMiniMax({
+    const result = await termFollowupWithProvider({
       term,
       language,
       definition,

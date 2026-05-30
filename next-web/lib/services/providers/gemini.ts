@@ -1,9 +1,9 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AnalysisResult, UserSettings, ChatMessage, PromptSegment, DimensionKey } from '../../types';
-import { AIProvider, TermExplanation, getApiKey, getCurrentModel } from './types';
-import { getMasterAnalysisPrompt } from './masterPrompt';
+import { AIProvider, TermExplanation, getApiKey, getCurrentModel, getCurrentTextModel } from './types';
+import { getMasterAnalysisPrompt, getExplainTermPrompt } from './masterPrompt';
 import { safeParseJSON } from '../../utils/jsonParser';
-import { getApiError } from '../../utils/apiErrorMessages';
+import { getApiError, getGenericApiError } from '../../utils/apiErrorMessages';
 
 // --- Schemas ---
 // Schema for initial analysis (requires both original and translated)
@@ -37,7 +37,8 @@ const analysisSchema = {
                 lighting: promptSegmentSchema,
                 mood: promptSegmentSchema,
                 style: promptSegmentSchema,
-            }
+            },
+            required: ["subject", "environment", "composition", "lighting", "mood", "style"]
         },
     },
     required: ["structuredPrompts"],
@@ -47,10 +48,10 @@ export class GeminiProvider implements AIProvider {
 
     readonly name = 'gemini';
 
-    private getClient() {
+    private getClient(hasImage: boolean = true) {
         const apiKey = getApiKey('gemini');
         if (!apiKey) throw new Error("MISSING_API_KEY");
-        const modelName = getCurrentModel();
+        const modelName = hasImage ? getCurrentModel() : getCurrentTextModel();
         const ai = new GoogleGenAI({ apiKey });
         return { ai, modelName };
     }
@@ -64,12 +65,13 @@ export class GeminiProvider implements AIProvider {
                 contents: {
                     parts: [
                         { inlineData: { mimeType: "image/jpeg", data: base64Image.split(',')[1] } },
-                        { text: getMasterAnalysisPrompt(settings) },
+                        { text: "Analyze this image according to the system instructions. Output STRICT JSON." },
                     ],
                 },
                 config: {
                     responseMimeType: "application/json",
                     responseSchema: analysisSchema,
+                    systemInstruction: getMasterAnalysisPrompt(settings)
                 },
             });
 
@@ -95,19 +97,9 @@ export class GeminiProvider implements AIProvider {
     }
 
     async explainTerm(term: string, language: string): Promise<TermExplanation> {
-        const { ai, modelName } = this.getClient();
+        const { ai, modelName } = this.getClient(false);
 
-        const prompt = `As an expert Art Director, explain the visual style/term: "${term}".
-      
-Target Language: ${language} (Must output in this language)
-
-Rules:
-1. Keep it VERY concise (for a small screen).
-2. "def": Definition/Characteristics (Max 80 words).
-3. "app": Common usage/Application (Max 80 words).
-
-Output strictly JSON:
-{ "def": "...", "app": "..." }`;
+        const prompt = getExplainTermPrompt(term, language);
 
         try {
             const response = await ai.models.generateContent({
@@ -142,7 +134,7 @@ Output strictly JSON:
     ): Promise<void> {
         console.time('⏱️ [Chat] Total');
         console.time('⏱️ [Chat] 1. getClient');
-        const { ai, modelName } = this.getClient();
+        const { ai, modelName } = this.getClient(Boolean(image));
         console.timeEnd('⏱️ [Chat] 1. getClient');
 
         const systemInstruction = `You are an AI assistant analyzing an image.
@@ -233,7 +225,7 @@ If the user asks for specific prompts, prompt breakdown, or detailed analysis of
     }
 
     async expandSearchQuery(query: string): Promise<string[][]> {
-        const { ai, modelName } = this.getClient();
+        const { ai, modelName } = this.getClient(false);
 
         const response = await ai.models.generateContent({
             model: modelName,
@@ -301,7 +293,7 @@ Example: "Rainy Street" -> { "groups": [ ["Rainy", "Wet", "Storm", "Drizzle"], [
 
     async translateText(text: string, language: string): Promise<string> {
         const { getTranslationPrompt } = await import('./masterPrompt');
-        const { ai, modelName } = this.getClient();
+        const { ai, modelName } = this.getClient(false);
 
         try {
             const response = await ai.models.generateContent({

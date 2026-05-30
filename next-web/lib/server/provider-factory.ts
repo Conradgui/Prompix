@@ -1,6 +1,29 @@
 import { AnalysisResult, UserSettings, ChatMessage, PromptSegment, DimensionKey, ApiConfig, TermExplanation } from '../types';
 import { safeParseJSON } from '../utils/jsonParser';
 import { getDimensionPrompt, getMasterAnalysisPrompt, getTranslationPrompt } from '../services/providers/masterPrompt';
+import { GoogleGenAI, Type } from '@google/genai';
+
+export const buildTermFollowupSystemPrompt = (params: {
+  term: string;
+  language: string;
+  definition: string;
+  application: string;
+  thinking?: string;
+}): string => {
+  return [
+    '你是 Prompix 术语学习助手。',
+    `目标语言：${params.language || 'Chinese'}。`,
+    `当前术语：${params.term}。`,
+    `术语定义：${params.definition || '（暂无）'}。`,
+    `术语应用：${params.application || '（暂无）'}。`,
+    params.thinking ? `模型思考摘录：${params.thinking}` : '',
+    '回答要求：',
+    '1. 简洁、专业、可执行，不重复模板句。',
+    '2. 优先回答用户追问，并给出可直接落地的表达建议。',
+  ]
+    .filter(Boolean)
+    .join('\n');
+};
 
 export interface ServerProvider {
   readonly name: string;
@@ -10,6 +33,15 @@ export interface ServerProvider {
   translateText(text: string, language: string): Promise<string>;
   chat(history: ChatMessage[], message: string, image?: string, settings?: UserSettings): Promise<{ text: string }>;
   chatStream(history: ChatMessage[], message: string, image?: string, settings?: UserSettings): Promise<ReadableStream>;
+  termFollowup(params: {
+    term: string;
+    language: string;
+    definition: string;
+    application: string;
+    thinking?: string;
+    history: any[];
+    message: string;
+  }): Promise<{ text: string }>;
 }
 
 // ----------------------------------------------------
@@ -365,6 +397,42 @@ Output JSON: { "def": "...", "app": "..." }`;
       return '';
     });
   }
+
+  async termFollowup(params: {
+    term: string;
+    language: string;
+    definition: string;
+    application: string;
+    thinking?: string;
+    history: any[];
+    message: string;
+  }): Promise<{ text: string }> {
+    const system = buildTermFollowupSystemPrompt(params);
+    const messages = [
+      { role: 'system', content: system },
+      ...params.history.map(h => ({ role: h.role === 'user' ? 'user' : 'assistant', content: h.text || '' })),
+      { role: 'user', content: params.message }
+    ];
+
+    const response = await fetch(this.getUrl(), {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({
+        model: this.getModelName(false),
+        messages,
+        temperature: 0.4,
+        max_tokens: 1000,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error?.message || `OpenAI compatible term followup failed (${response.status})`);
+    }
+
+    const data = await response.json();
+    return { text: data.choices?.[0]?.message?.content || '' };
+  }
 }
 
 // ====================================================
@@ -684,4 +752,339 @@ Output JSON: { "def": "...", "app": "..." }`;
       return '';
     });
   }
+
+  async termFollowup(params: {
+    term: string;
+    language: string;
+    definition: string;
+    application: string;
+    thinking?: string;
+    history: any[];
+    message: string;
+  }): Promise<{ text: string }> {
+    const system = buildTermFollowupSystemPrompt(params);
+    const messages = [
+      ...params.history.map(h => ({ role: h.role === 'user' ? 'user' : 'assistant', content: h.text || '' })),
+      { role: 'user', content: params.message }
+    ];
+
+    const response = await fetch(this.getUrl(), {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({
+        model: this.config.model,
+        system,
+        messages,
+        temperature: 0.4,
+        max_tokens: 1000,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error?.message || `Claude term followup failed (${response.status})`);
+    }
+
+    const data = await response.json();
+    return { text: data.content?.[0]?.text || '' };
+  }
 }
+
+// ====================================================
+// 3. Gemini Server Provider
+// ====================================================
+export class GeminiServerProvider implements ServerProvider {
+  readonly name = 'gemini';
+  private config: ApiConfig;
+
+  constructor(config: ApiConfig) {
+    this.config = config;
+  }
+
+  private getClient() {
+    const apiKey = (this.config.apiKey || '').trim();
+    if (!apiKey) throw new Error("MISSING_API_KEY");
+    const modelName = (this.config.model || 'gemini-2.5-flash').trim();
+    const baseUrl = (this.config.baseUrl || '').trim();
+    const options: any = { apiKey };
+    if (baseUrl) {
+      options.httpOptions = { baseUrl };
+    }
+    const ai = new GoogleGenAI(options);
+    return { ai, modelName };
+  }
+
+  async analyzeImage(base64Image: string, settings: UserSettings): Promise<AnalysisResult> {
+    const { ai, modelName } = this.getClient();
+    const systemPrompt = getMasterAnalysisPrompt(settings);
+    const imageData = base64Image.replace(/^data:image\/[a-z]+;base64,/, '');
+
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents: [
+        { inlineData: { mimeType: 'image/jpeg', data: imageData } },
+        { text: systemPrompt },
+      ],
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            structuredPrompts: {
+              type: Type.OBJECT,
+              properties: {
+                subject: {
+                  type: Type.OBJECT,
+                  properties: { original: { type: Type.STRING }, translated: { type: Type.STRING } },
+                  required: ['original', 'translated'],
+                },
+                environment: {
+                  type: Type.OBJECT,
+                  properties: { original: { type: Type.STRING }, translated: { type: Type.STRING } },
+                  required: ['original', 'translated'],
+                },
+                composition: {
+                  type: Type.OBJECT,
+                  properties: { original: { type: Type.STRING }, translated: { type: Type.STRING } },
+                  required: ['original', 'translated'],
+                },
+                lighting: {
+                  type: Type.OBJECT,
+                  properties: { original: { type: Type.STRING }, translated: { type: Type.STRING } },
+                  required: ['original', 'translated'],
+                },
+                mood: {
+                  type: Type.OBJECT,
+                  properties: { original: { type: Type.STRING }, translated: { type: Type.STRING } },
+                  required: ['original', 'translated'],
+                },
+                style: {
+                  type: Type.OBJECT,
+                  properties: { original: { type: Type.STRING }, translated: { type: Type.STRING } },
+                  required: ['original', 'translated'],
+                },
+              },
+              required: ['subject', 'environment', 'composition', 'lighting', 'mood', 'style'],
+            },
+          },
+          required: ['structuredPrompts'],
+        },
+      },
+    });
+
+    const text = response.text;
+    if (!text) throw new Error('No content returned from Gemini');
+    return safeParseJSON<AnalysisResult>(text, {} as AnalysisResult);
+  }
+
+  async regenerateDimension(base64Image: string, dimension: DimensionKey, settings: UserSettings): Promise<PromptSegment> {
+    const { ai, modelName } = this.getClient();
+    const systemPrompt = getDimensionPrompt(dimension, settings);
+    const imageData = base64Image.replace(/^data:image\/[a-z]+;base64,/, '');
+
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents: [
+        { inlineData: { mimeType: 'image/jpeg', data: imageData } },
+        { text: 'Analyze this image according to instructions.' },
+      ],
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            original: { type: Type.STRING },
+            translated: { type: Type.STRING },
+          },
+          required: ['original', 'translated'],
+        },
+      },
+    });
+
+    const text = response.text;
+    if (!text) throw new Error('No content returned from Gemini');
+    return safeParseJSON<PromptSegment>(text, { original: '', translated: '' });
+  }
+
+  async explainTerm(term: string, language: string): Promise<TermExplanation> {
+    const { ai, modelName } = this.getClient();
+    const prompt = `As an expert Art Director, explain the visual style/term: "${term}".
+Target Language: ${language}
+Rules: Keep it VERY concise.
+"def": Definition (Max 100 words).
+"app": Application (Max 100 words).
+Output JSON: { "def": "...", "app": "..." }`;
+
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents: [{ parts: [{ text: prompt }] }],
+      config: {
+        responseMimeType: 'application/json',
+      },
+    });
+
+    const text = response.text;
+    if (!text) throw new Error('No content returned from Gemini');
+    return safeParseJSON<TermExplanation>(text, { def: '', app: '' });
+  }
+
+  async translateText(text: string, language: string): Promise<string> {
+    const { ai, modelName } = this.getClient();
+    const prompt = getTranslationPrompt(text, language);
+
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents: [{ parts: [{ text: prompt }] }],
+      config: {
+        responseMimeType: 'application/json',
+      },
+    });
+
+    const result = safeParseJSON<{ translated: string }>(response.text || '{}', { translated: '' });
+    return result.translated || '';
+  }
+
+  async chat(history: ChatMessage[], message: string, image?: string, settings?: UserSettings): Promise<{ text: string }> {
+    const { ai, modelName } = this.getClient();
+    const systemInstruction = `你是 Prompix 的视觉分析助手。回答语言使用 ${settings?.systemLanguage || 'Chinese'}。回答要简洁、专业、可执行。`;
+
+    const historyParts: any[] = [];
+    let imageIncluded = false;
+    const imageData = image ? image.replace(/^data:image\/[a-z]+;base64,/, '') : undefined;
+
+    for (const h of history) {
+      if (h.role === 'user' && imageData && !imageIncluded) {
+        historyParts.push({
+          role: 'user',
+          parts: [
+            { inlineData: { mimeType: 'image/jpeg', data: imageData } },
+            { text: h.text }
+          ]
+        });
+        imageIncluded = true;
+      } else {
+        historyParts.push({
+          role: h.role === 'user' ? 'user' : 'model',
+          parts: [{ text: h.text }]
+        });
+      }
+    }
+
+    if (imageData && !imageIncluded) {
+      historyParts.push({
+        role: 'user',
+        parts: [
+          { inlineData: { mimeType: 'image/jpeg', data: imageData } },
+          { text: '[Image uploaded for analysis]' }
+        ]
+      });
+      historyParts.push({
+        role: 'model',
+        parts: [{ text: 'I can see the image. How can I help you analyze it?' }]
+      });
+    }
+
+    const chat = ai.chats.create({
+      model: modelName,
+      history: historyParts,
+      config: { systemInstruction }
+    });
+
+    const response = await chat.sendMessage({ message });
+    return { text: response.text || '' };
+  }
+
+  async chatStream(history: ChatMessage[], message: string, image?: string, settings?: UserSettings): Promise<ReadableStream> {
+    const { ai, modelName } = this.getClient();
+    const systemInstruction = `你是 Prompix 的视觉分析助手。回答语言使用 ${settings?.systemLanguage || 'Chinese'}。回答要简洁、专业、可执行。`;
+
+    const historyParts: any[] = [];
+    let imageIncluded = false;
+    const imageData = image ? image.replace(/^data:image\/[a-z]+;base64,/, '') : undefined;
+
+    for (const h of history) {
+      if (h.role === 'user' && imageData && !imageIncluded) {
+        historyParts.push({
+          role: 'user',
+          parts: [
+            { inlineData: { mimeType: 'image/jpeg', data: imageData } },
+            { text: h.text }
+          ]
+        });
+        imageIncluded = true;
+      } else {
+        historyParts.push({
+          role: h.role === 'user' ? 'user' : 'model',
+          parts: [{ text: h.text }]
+        });
+      }
+    }
+
+    if (imageData && !imageIncluded) {
+      historyParts.push({
+        role: 'user',
+        parts: [
+          { inlineData: { mimeType: 'image/jpeg', data: imageData } },
+          { text: '[Image uploaded for analysis]' }
+        ]
+      });
+      historyParts.push({
+        role: 'model',
+        parts: [{ text: 'I can see the image. How can I help you analyze it?' }]
+      });
+    }
+
+    const chat = ai.chats.create({
+      model: modelName,
+      history: historyParts,
+      config: { systemInstruction }
+    });
+
+    const resultStream = await chat.sendMessageStream({ message });
+    
+    return new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of resultStream) {
+            const text = chunk.text;
+            if (text) {
+              controller.enqueue(new TextEncoder().encode(text));
+            }
+          }
+        } catch (err) {
+          controller.error(err);
+        } finally {
+          controller.close();
+        }
+      }
+    });
+  }
+
+  async termFollowup(params: {
+    term: string;
+    language: string;
+    definition: string;
+    application: string;
+    thinking?: string;
+    history: any[];
+    message: string;
+  }): Promise<{ text: string }> {
+    const { ai, modelName } = this.getClient();
+    const systemInstruction = buildTermFollowupSystemPrompt(params);
+    const historyParts = params.history.map(h => ({
+      role: h.role === 'user' ? 'user' : 'model',
+      parts: [{ text: h.text }]
+    }));
+
+    const chat = ai.chats.create({
+      model: modelName,
+      history: historyParts,
+      config: { systemInstruction }
+    });
+
+    const response = await chat.sendMessage({ message: params.message });
+    return { text: response.text || '' };
+  }
+}
+

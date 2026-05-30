@@ -13,6 +13,7 @@ import {
   PromptSegment,
   ManagedMeta,
   TermFollowupMessage,
+  RuntimeMode,
 } from '../types';
 import { getApiConfig, getCurrentModel, getRuntimeMode, isApiConfigReady } from './providers';
 
@@ -69,8 +70,9 @@ export const analyzeImage = async (
   base64Image: string,
   settings: UserSettings,
   onMeta?: MetaHandler,
+  forceMode?: RuntimeMode,
 ): Promise<AnalysisResult> => {
-  const runtimePayload = getRuntimePayload();
+  const runtimePayload = forceMode === 'demo' ? { mode: 'demo' as const } : getRuntimePayload();
   const data = await requestManaged<{ analysis: AnalysisResult; meta?: ManagedMeta }>('/api/managed/analyze', {
     image: base64Image,
     settings,
@@ -200,8 +202,9 @@ export const explainVisualTerm = async (
   term: string,
   language: string,
   onMeta?: MetaHandler,
+  forceMode?: RuntimeMode,
 ): Promise<TermExplanation> => {
-  const runtimePayload = getRuntimePayload();
+  const runtimePayload = forceMode === 'demo' ? { mode: 'demo' as const } : getRuntimePayload();
   const data = await requestManaged<{ explanation: TermExplanation; meta?: ManagedMeta }>('/api/managed/explain-term', {
     term,
     language,
@@ -239,8 +242,9 @@ export const askTermFollowUp = async (params: {
   history: TermFollowupMessage[];
   message: string;
   onMeta?: MetaHandler;
+  forceMode?: RuntimeMode;
 }): Promise<string> => {
-  const runtimePayload = getRuntimePayload();
+  const runtimePayload = params.forceMode === 'demo' ? { mode: 'demo' as const } : getRuntimePayload();
   const data = await requestManaged<TermFollowupResponse>('/api/managed/term-followup', {
     term: params.term,
     language: params.language,
@@ -258,7 +262,7 @@ export const askTermFollowUp = async (params: {
 export const getActiveProviderInfo = () => {
   return {
     runtimeMode: getRuntimeMode(),
-    provider: 'minimax',
+    provider: 'gemini',
     model: getCurrentModel(),
   };
 };

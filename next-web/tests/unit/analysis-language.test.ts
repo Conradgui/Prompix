@@ -4,6 +4,7 @@ import {
   getHistoryAnalysisByLanguage,
   resolveHistoryPromptLanguage,
   upsertHistoryAnalysisVariant,
+  swapAnalysisResultLanguage,
 } from '../../lib/utils/analysisLanguage';
 
 const makeAnalysis = (subject: string): AnalysisResult => ({
@@ -60,7 +61,7 @@ describe('analysis language helpers', () => {
     expect(getHistoryAnalysisByLanguage(legacy, 'zh')).toBeNull();
   });
 
-  it('upserts variant and updates active language', () => {
+  it('upserts variant and updates both zh and en variants simultaneously', () => {
     const en = makeAnalysis('English version');
     const zh = makeAnalysis('中文版本');
     const item = makeItem(en);
@@ -69,6 +70,47 @@ describe('analysis language helpers', () => {
     expect(updated.promptLanguage).toBe('zh');
     expect(updated.analysis).toBe(zh);
     expect(updated.analysisVariants?.zh).toBe(zh);
+    expect(updated.analysisVariants?.en?.structuredPrompts.subject.original).toBe(zh.structuredPrompts.subject.translated);
+  });
+
+  it('swaps prompt original and translated fields correctly', () => {
+    const orig: AnalysisResult = {
+      description: 'test description',
+      structuredPrompts: {
+        subject: { original: 'A boy', translated: '一个男孩' },
+        environment: { original: 'Rain', translated: '雨天' },
+        composition: { original: 'Portrait', translated: '肖像' },
+        lighting: { original: 'Bright', translated: '明亮' },
+        mood: { original: 'Happy', translated: '快乐' },
+        style: { original: 'Art', translated: '艺术' },
+      }
+    };
+    const swapped = swapAnalysisResultLanguage(orig);
+    expect(swapped.structuredPrompts.subject.original).toBe('一个男孩');
+    expect(swapped.structuredPrompts.subject.translated).toBe('A boy');
+  });
+
+  it('dynamically swaps legacy cached variant if requested language is missing', () => {
+    const en: AnalysisResult = {
+      description: 'legacy',
+      structuredPrompts: {
+        subject: { original: 'A boy', translated: '一个男孩' },
+        environment: { original: 'Rain', translated: '雨天' },
+        composition: { original: 'Portrait', translated: '肖像' },
+        lighting: { original: 'Bright', translated: '明亮' },
+        mood: { original: 'Happy', translated: '快乐' },
+        style: { original: 'Art', translated: '艺术' },
+      }
+    };
+    const item: HistoryItem = {
+      ...makeItem(en),
+      promptLanguage: 'en',
+      analysisVariants: { en },
+    };
+    const result = getHistoryAnalysisByLanguage(item, 'zh');
+    expect(result).not.toBeNull();
+    expect(result?.structuredPrompts.subject.original).toBe('一个男孩');
+    expect(result?.structuredPrompts.subject.translated).toBe('A boy');
   });
 });
 

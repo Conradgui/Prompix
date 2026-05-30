@@ -1,6 +1,6 @@
 import { AnalysisResult, UserSettings, ChatMessage, PromptSegment, DimensionKey } from '../../types';
-import { AIProvider, TermExplanation, getApiKey, getCurrentModel } from './types';
-import { getMasterAnalysisPrompt } from './masterPrompt';
+import { AIProvider, TermExplanation, getApiKey, getCurrentModel, getCurrentTextModel } from './types';
+import { getMasterAnalysisPrompt, getExplainTermPrompt } from './masterPrompt';
 import { safeParseJSON } from '../../utils/jsonParser';
 import { getApiError, getGenericApiError } from '../../utils/apiErrorMessages';
 
@@ -32,6 +32,7 @@ export class ClaudeProvider implements AIProvider {
             headers: this.getHeaders(),
             body: JSON.stringify({
                 model: modelName,
+                system: getMasterAnalysisPrompt(settings),
                 max_tokens: 2000,
                 messages: [
                     {
@@ -41,7 +42,7 @@ export class ClaudeProvider implements AIProvider {
                                 type: 'image',
                                 source: { type: 'base64', media_type: 'image/jpeg', data: imageData }
                             },
-                            { type: 'text', text: getMasterAnalysisPrompt(settings) }
+                            { type: 'text', text: "Analyze this image according to the system instructions. Output STRICT JSON." }
                         ]
                     }
                 ]
@@ -75,14 +76,9 @@ export class ClaudeProvider implements AIProvider {
     }
 
     async explainTerm(term: string, language: string): Promise<TermExplanation> {
-        const modelName = getCurrentModel();
+        const modelName = getCurrentTextModel();
 
-        const prompt = `As an expert Art Director, explain the visual style/term: "${term}".
-Target Language: ${language}
-Rules: Keep it VERY concise.
-"def": Definition (Max 80 words).
-"app": Application (Max 80 words).
-Output JSON only (no markdown): { "def": "...", "app": "..." }`;
+        const prompt = getExplainTermPrompt(term, language);
 
         const response = await fetch(CLAUDE_API_URL, {
             method: 'POST',
@@ -122,7 +118,7 @@ Output JSON only (no markdown): { "def": "...", "app": "..." }`;
         onUpdate: (text: string) => void,
         settings?: UserSettings
     ): Promise<void> {
-        const modelName = getCurrentModel();
+        const modelName = image ? getCurrentModel() : getCurrentTextModel();
         const messages: any[] = [];
 
         // Build history with image in FIRST user message only
@@ -207,7 +203,7 @@ Output JSON only (no markdown): { "def": "...", "app": "..." }`;
     }
 
     async expandSearchQuery(query: string): Promise<string[][]> {
-        const modelName = getCurrentModel();
+        const modelName = getCurrentTextModel();
 
         const response = await fetch(CLAUDE_API_URL, {
             method: 'POST',
@@ -272,7 +268,7 @@ Output JSON only (no markdown): { "groups": [ ["word1", "syn1", "syn2"], ["word2
 
     async translateText(text: string, language: string): Promise<string> {
         const { getTranslationPrompt } = await import('./masterPrompt');
-        const modelName = getCurrentModel();
+        const modelName = getCurrentTextModel();
 
         const response = await fetch(CLAUDE_API_URL, {
             method: 'POST',

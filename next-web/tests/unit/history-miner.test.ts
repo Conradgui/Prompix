@@ -24,8 +24,8 @@ describe('history miner', () => {
     const result = mineHistory([makeItem()]);
     const categories = new Set(result.filter((item) => !item.isPreset).map((item) => item.category));
 
-    expect(categories.has('subject')).toBe(false);
-    expect(categories.has('environment')).toBe(false);
+    expect(categories.has('subject')).toBe(true);
+    expect(categories.has('environment')).toBe(true);
     expect(categories.has('composition')).toBe(true);
     expect(categories.has('lighting')).toBe(true);
     expect(categories.has('mood')).toBe(true);
@@ -59,5 +59,22 @@ describe('history miner', () => {
     const result2 = mineHistory([itemA, itemB]).map((entry) => `${entry.term}:${entry.category}`);
 
     expect(result1).toEqual(result2);
+  });
+
+  it('adjusts category of aspect ratio, resolution, and camera specifications to composition', () => {
+    const item = makeItem();
+    // Simulate model placing 16:9 aspect ratio and 8K under style
+    item.analysis.structuredPrompts.style.original = '16:9画幅, 8K, Hasselblad shot, 经典画风';
+
+    const result = mineHistory([item]);
+    const ratio = result.find(r => r.term === '16:9画幅');
+    const resolution = result.find(r => r.term === '8K');
+    const camera = result.find(r => r.term === 'Hasselblad shot');
+    const style = result.find(r => r.term === '经典画风');
+
+    expect(ratio?.category).toBe('composition');
+    expect(resolution?.category).toBe('composition');
+    expect(camera?.category).toBe('composition');
+    expect(style?.category).toBe('style'); // Stays style
   });
 });

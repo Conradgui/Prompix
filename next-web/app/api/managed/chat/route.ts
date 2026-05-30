@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/server/rate-limit';
-import { chatWithMiniMax, getServerProvider } from '@/lib/server/managed-ops';
+import { getManagedProvider } from '@/lib/server/managed-ops';
 import { canUseCustomApiInRequest, getApiModeBlockedMessage, resolveRequestRuntimeMode } from '@/lib/server/runtime-policy';
 
 export async function POST(req: NextRequest) {
@@ -29,38 +29,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '问题内容不能为空。' }, { status: 400 });
     }
 
-    const provider = getServerProvider(apiConfig);
-    if (provider) {
-      const stream = await provider.chatStream(history, message, image, settings);
-      return new NextResponse(stream, {
-        headers: {
-          'Content-Type': 'text/plain; charset=utf-8',
-          'Transfer-Encoding': 'chunked',
-          'Cache-Control': 'no-cache, no-transform',
-          'Connection': 'keep-alive',
-        },
-      });
-    }
-
-    // Fallback for MiniMax
-    const result = await chatWithMiniMax({
-      history,
-      message,
-      image,
-      settings,
-      customConfig: apiConfig,
-    });
-
-    const staticStream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode(result.text));
-        controller.close();
-      },
-    });
-
-    return new NextResponse(staticStream, {
+    const provider = getManagedProvider(apiConfig);
+    const stream = await provider.chatStream(history, message, image, settings);
+    return new NextResponse(stream, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
+        'Transfer-Encoding': 'chunked',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
       },
     });
   } catch (error: any) {

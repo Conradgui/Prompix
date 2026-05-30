@@ -77,4 +77,17 @@ describe('history miner', () => {
     expect(camera?.category).toBe('composition');
     expect(style?.category).toBe('style'); // Stays style
   });
+
+  it('excludes noise terms and transition phrases from mined results', () => {
+    const item = makeItem();
+    item.analysis.structuredPrompts.subject.original = 'a girl, in the background, 123, sitting on';
+    const result = mineHistory([item]).filter(r => !r.isPreset);
+    
+    const terms = result.map(r => r.term.toLowerCase());
+    
+    expect(terms.includes('a girl')).toBe(true);
+    expect(terms.includes('in the background')).toBe(false);
+    expect(terms.includes('123')).toBe(false);
+    expect(terms.includes('sitting on')).toBe(false);
+  });
 });

@@ -9,6 +9,7 @@ import PrimaryButton from '@/components/ui/PrimaryButton';
 import { useAppState } from '@/lib/state/app-state';
 import { mineHistory, TermCategory } from '@/lib/utils/historyMiner';
 import { askTermFollowUp, explainVisualTerm, TermExplanation } from '@/lib/services/geminiService';
+import presetsGlossary from '@/lib/data/presets-glossary.json';
 import { buildPrefetchQueue } from '@/lib/utils/wordbankPrefetch';
 import { getDimensionLabel, resolveUiLocale, UI_TEXT } from '@/lib/i18n/ui';
 import { RuntimeMode } from '@/lib/types';
@@ -188,6 +189,28 @@ export default function WordbankClient() {
 
     if (!forceMode && applyCachedExplanation(term) && activeTermRef.current === term) {
       setLexiconError(null);
+      return;
+    }
+
+    // 优先检查本地 presets-glossary 静态词条库
+    const cleanTerm = term.toLowerCase().trim();
+    if (!forceMode && cleanTerm in presetsGlossary) {
+      const preset = (presetsGlossary as Record<string, { def: string; app: string }>)[cleanTerm];
+      const next = {
+        def: preset.def,
+        app: preset.app,
+      };
+      const nextCache = upsertTermExplanationCache(cacheRef.current, term, language, next, {
+        thinking: '（本地预置词典数据 0-Token 拦截）',
+      });
+      persistExplanationCache(nextCache);
+      
+      if (activeTermRef.current === term) {
+        setExplanation(next);
+        setExplanationThinking('（本地预置词典数据 0-Token 拦截）');
+        setErrorText('');
+        setLexiconError(null);
+      }
       return;
     }
 

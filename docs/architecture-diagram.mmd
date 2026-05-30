@@ -1,0 +1,23 @@
+%%{init: {"theme": "dark", "themeVariables": { "primaryColor": "#1e2a3a", "primaryTextColor": "#e0e8f0", "primaryBorderColor": "#4a90d9", "lineColor": "#7ab3e0", "edgeLabelBackground": "#1a2332" }}}%%
+graph TD
+    subgraph client ["客户端 (Client-Side Next.js SPA)"]
+        U[用户上传图片 User Image Upload] -->|Canvas 采样压缩 Canvas Compression| C[5KB 缩略图 + 1024px 主图]
+        C -->|存储大图 IndexedDB Storage| DB[(IndexedDB: 原始大图存储)]
+        C -->|轻量化元数据 Lightweight Metadata| LS[(LocalStorage: 历史列表)]
+        C -->|网络载荷 Payload| GW[无状态路由 / 网关 Stateless Router]
+    end
+
+    subgraph server ["服务端 API 网关 (Server-Side API Gateway)"]
+        GW -->|动态路由与降级 Dynamic Model Routing / Fallback| RF{是否为纯文本模型 Text Model Input?}
+        RF -->|是 Yes: 自动映射| VP[多模态视觉模型适配器 Vision-Capable LLM Provider]
+        RF -->|否 No: 保持原配置| VP
+        VP -->|Zod Schema 强类型约束| LLM[LLM 大模型推理: OpenAI / SiliconFlow / Gemini]
+        LLM -->|双语结构化 JSON 流 Bilingual Structured JSON Stream| GW
+    end
+
+    subgraph render ["客户端渲染与交互 (Client Render & Interaction)"]
+        GW -->|0ms 语言瞬切 0ms Language Toggle| View["双语工作台 UI (Bilingual Workspace UI)"]
+        View -->|输入聊天指令 Chat Command| Chat[非破坏性卡片微调 Non-Destructive Refinement]
+        Chat -->|锁定维度 100% 字符一致| View
+        View -->|提取艺术术语 Visual Glossary| Bank[术语库挖掘与追问 Wordbank Mining & Term Explanation]
+    end

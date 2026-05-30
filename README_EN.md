@@ -9,6 +9,34 @@
 
 ---
 
+## 📷 Product Screenshots
+
+#### 🏠 Home — Deconstruct Vision, Preserve Language
+> A poetic, minimal landing page. Drag & drop to begin visual deconstruction.
+![Home](./docs/screenshot-01-home.png)
+
+#### 🔍 Analysis Workspace (English Prompts) — 6-Dimension Structured Breakdown + Weight Sliders
+> AI decomposes visual language into Subject, Environment, Composition, Lighting, Mood & Style cards with adjustable prompt weights.
+![Analysis EN](./docs/screenshot-02-analysis-en.png)
+
+#### 🔍 Analysis Workspace (Chinese Prompts) — 0ms Bilingual Toggle
+> Both languages are generated in a single inference call. Toggle instantly without re-querying the model.
+![Analysis ZH](./docs/screenshot-03-analysis-zh.png)
+
+#### 📖 Visual Lexicon — Term Mining & Deep Follow-up
+> Auto-extracts professional visual terms from analysis results, with definitions, usage guides, and multi-turn follow-up Q&A.
+![Visual Lexicon](./docs/screenshot-04-wordbank.png)
+
+#### 📦 Prompt Memory — Creative Asset Management & Batch Export
+> All analysis history displayed as a thumbnail gallery. Supports batch selection, JSON import/export, and keyword search.
+![Prompt Memory](./docs/screenshot-05-library.png)
+
+#### 🧪 Developer Lab — External AI Review & Memory Card Rollback
+> Package analysis into structured review bundles for external AI (GPT-5 / Gemini), then import feedback as rollback-ready optimization memory cards.
+![Developer Lab](./docs/screenshot-06-devlab.png)
+
+---
+
 ## 💡 Product Positioning & Pain Point Analysis
 
 In the era of AI visual creation driven by Midjourney, Stable Diffusion, and DALL-E, the core pain point for creators is no longer "how to generate an image," but rather "how to precisely control and curate their visual language system."
@@ -26,30 +54,9 @@ Traditional prompt-reversing tools (like CLIP or simple LLM Q&A) present three c
 
 Prompix adopts a **stateless server-side gateway + client-side high-capacity storage separation** architecture to guarantee user privacy and millisecond-level responsiveness:
 
-```mermaid
-graph TD
-    subgraph client ["Client-Side (Next.js SPA)"]
-        U[User Image Upload] -->|Canvas Compression| C[5KB Thumbnail + 1024px Image]
-        C -->|IndexedDB Storage| DB[(IndexedDB: Raw Image Binary)]
-        C -->|Lightweight Metadata| LS[(LocalStorage: History List)]
-        C -->|Network Payload| GW[Stateless Router / Gateway]
-    end
-    
-    subgraph server ["Server-Side API Gateway"]
-        GW -->|Dynamic Model Routing / Fallback| RF{Text Model Input?}
-        RF -->|Yes: Map to Vision Sibling| VP[Vision-Capable LLM Provider]
-        RF -->|No| VP
-        VP -->|Zod Schema Enforcement| LLM[LLM Inference: OpenAI / SiliconFlow / Gemini]
-        LLM -->|Bilingual Structured JSON Stream| GW
-    end
+![Prompix System Architecture](./docs/architecture-diagram.png)
 
-    subgraph render ["Client Render & Interaction"]
-        GW -->|0ms Language Toggle| View["Bilingual Workspace UI"]
-        View -->|Chat Command| Chat[Non-Destructive Refinement]
-        Chat -->|Locked Dimension Kept 100% Identical| View
-        View -->|Visual Glossary| Bank[Wordbank Mining & Term Explanation]
-    end
-```
+> Architecture source file (Mermaid format): [docs/architecture-diagram.mmd](./docs/architecture-diagram.mmd)
 
 ---
 
@@ -170,7 +177,15 @@ Runs automated browser actions:
     - Strict workspace isolation: auto-clears and re-mines wordbank when switching images.
     - Local static preset bypass (0 Token explanation), sequential prioritization, and a max-15 prefetch ceiling.
     - Hallucination guardrails, schema required constraints, and aspect ratio/resolution classification correction rules.
-*   [ ] **v1.4.0 - Future: Semantic Search**: Local int8 CLIP model (ONNX) for text-to-image and image-to-image search in-browser.
+*   [x] **v1.4.0 - Aspect Ratio & Text Denoising**:
+    - **Dynamic Aspect Ratio**: Detects the original image ratio (e.g. `16:9`, `9:16`, `1:1`) during compression and propagates it directly into Midjourney parameter configs (`--ar 16:9`).
+    - **Visual Text Denoising**: Filters preposition phrases, pure numbers, and generic stopwords via `isPureVisualTerm` to preserve professional visual prompt terms.
+*   [x] **v1.5.0 - Collapsed Sliders, Adaptive Compiling & Local Glossary**:
+    - **Focused Sliders**: Replaces bulky "Save/Apply/Close" buttons with smooth Framer Motion sliders that toggle when cards are focused or clicked.
+    - **Adaptive Prompt Compiling**: Decouples compiling into `promptCompiler.ts`, omitting default `1.0` weights and formatting custom weights precisely for Midjourney (`::1.5`) and Stable Diffusion (`(word:1.5)`).
+    - **0-Token Static Glossary**: Intercepts term explain queries using a local database (`presets-glossary.json`) to skip unnecessary LLM token calls and latency.
+    - **Slider Vertical Alignment (v1.5.1)**: Fixes Range Slider track and thumb alignments in Safari / Webkit browsers to align perfectly with subtle hover micro-interactions.
+*   [ ] **v1.6.0 - Future: Semantic Search**: Local int8 CLIP model (ONNX) for text-to-image and image-to-image search in-browser.
 
 ---
 

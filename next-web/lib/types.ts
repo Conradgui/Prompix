@@ -154,6 +154,7 @@ export interface HistoryItem {
   activeMemoryIds?: string[];
   publishedVersions?: PromptPublishVersion[];
   publishedVersionId?: string;
+  aspectRatio?: string; // Target aspect ratio (e.g. "16:9", "9:16")
 }
 
 // History tracking for each dimension

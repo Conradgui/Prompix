@@ -225,7 +225,8 @@ export default function DevLabClient() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="h-full overflow-y-auto ag-scrollbar">
+    <div className="space-y-5 pb-8">
       <Surface className="p-4 sm:p-5">
         <h1 className="text-xl font-semibold text-ag-text">{text.devlab.title}</h1>
         <p className="mt-2 text-sm text-ag-muted">{text.devlab.subtitle}</p>
@@ -403,6 +404,7 @@ export default function DevLabClient() {
       </Surface>
 
       {statusText ? <Surface className="p-3 text-sm text-ag-muted">{statusText}</Surface> : null}
+    </div>
     </div>
   );
 }

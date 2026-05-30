@@ -9,6 +9,34 @@
 
 ---
 
+## 📷 产品界面一览 (Product Screenshots)
+
+#### 🏠 首页 — 解构视觉，沉淀语言
+> 极简诗意的 Landing Page，一键拖拽即可开始视觉解构。
+![首页](./docs/screenshot-01-home.png)
+
+#### 🔍 分析工作台（英文 Prompt）— 六维度结构化拆解 + 聚焦权重滑块
+> 上传图片后，AI 自动将视觉语言拆解为主体、环境、构图、光照、情绪、风格六大维度卡片，支持微调权重。
+![分析工作台 EN](./docs/screenshot-02-analysis-en.png)
+
+#### 🔍 分析工作台（中文 Prompt）— 0ms 双语瞬切
+> 中英文提示词在首次分析时同步生成，点击即切换，无需二次调用模型。
+![分析工作台 ZH](./docs/screenshot-03-analysis-zh.png)
+
+#### 📖 视觉词汇库 — 术语挖掘与深度追问
+> 自动从分析结果中提取高阶视觉术语，提供定义、应用指导与多轮追问能力，构建个人创作词典。
+![视觉词汇库](./docs/screenshot-04-wordbank.png)
+
+#### 📦 提示词记忆库 — 创意资产管理与批量导出
+> 所有分析历史以缩略图瀑布流展示，支持批量选中、JSON 导入导出与关键词搜索。
+![提示词记忆](./docs/screenshot-05-library.png)
+
+#### 🧪 开发者调优实验室 — 外部 AI 评审与记忆卡回滚
+> 将分析结果打包为结构化评审包，导出给 GPT-5 / Gemini 等外部 AI 评审后，回灌标准反馈生成可回滚的优化记忆卡。
+![开发者调优](./docs/screenshot-06-devlab.png)
+
+---
+
 ## 💡 产品定位与痛点分析 (Product Positioning & Pain Points)
 
 在以 Midjourney、Stable Diffusion 和 DALL-E 为核心的 AI 视觉创作时代，创作者面临的痛点已不再是“如何生成一张图”，而是“如何精准控制与沉淀自己的视觉语言体系”。
@@ -26,30 +54,9 @@
 
 Prompix 采用了**轻量级无状态服务端网关 + 客户端大容量存储隔离**的先进架构，确保了极佳的用户隐私保护和极高的响应速度：
 
-```mermaid
-graph TD
-    subgraph client ["客户端 (Client-Side Next.js SPA)"]
-        U[用户上传图片 User Image Upload] -->|Canvas 采样压缩 Canvas Compression| C[5KB 缩略图 + 1024px 主图]
-        C -->|存储大图 IndexedDB Storage| DB[(IndexedDB: 原始大图存储)]
-        C -->|轻量化元数据 Lightweight Metadata| LS[(LocalStorage: 历史列表)]
-        C -->|网络载荷 Payload| GW[无状态路由 / 网关 Stateless Router]
-    end
-    
-    subgraph server ["服务端 API 网关 (Server-Side API Gateway)"]
-        GW -->|动态路由与降级 Dynamic Model Routing / Fallback| RF{是否为纯文本模型 Text Model Input?}
-        RF -->|是 Yes: 自动映射| VP[多模态视觉模型适配器 Vision-Capable LLM Provider]
-        RF -->|否 No: 保持原配置| VP
-        VP -->|Zod Schema 强类型约束| LLM[LLM 大模型推理: OpenAI / SiliconFlow / Gemini]
-        LLM -->|双语结构化 JSON 流 Bilingual Structured JSON Stream| GW
-    end
+![Prompix System Architecture](./docs/architecture-diagram.png)
 
-    subgraph render ["客户端渲染与交互 (Client Render & Interaction)"]
-        GW -->|0ms 语言瞬切 0ms Language Toggle| View["双语工作台 UI (Bilingual Workspace UI)"]
-        View -->|输入聊天指令 Chat Command| Chat[非破坏性卡片微调 Non-Destructive Refinement]
-        Chat -->|锁定维度 100% 字符一致| View
-        View -->|提取艺术术语 Visual Glossary| Bank[术语库挖掘与追问 Wordbank Mining & Term Explanation]
-    end
-```
+> 架构图源文件（Mermaid 格式）：[docs/architecture-diagram.mmd](./docs/architecture-diagram.mmd)
 
 
 ---
@@ -191,6 +198,17 @@ graph TD
   - 实现词汇库上下文绝对隔离，多历史项目切换时自动清空并重建当前专属词库。
   - 引入本地预设释义 0 Token 静态拦截旁路，首屏词条预加载排队与 15 封顶策略。
   - 升级防幻觉指令护栏，强化 Schema required 键值 Zod 强约束，新增 16:9/8K 分类自适应纠偏规则。
+- [x] **v1.4.0 - 宽高比判定与分词去噪 (Aspect Ratio & Text Denoising)**:
+  - **宽高比动态检测**：图片上传与压缩时自动判定最佳比例（如 `16:9`, `9:16`, `1:1`），并自动同步写入卡片的 `mjParams` 复制控制字段（形如 ` --ar 16:9`）。
+  - **分词过滤去噪**：引入 `isPureVisualTerm` 过滤层与停词表，自动剔除过渡介词、纯数字及低艺术指示度的无用短句，提炼词汇库的艺术纯度。
+- [x] **v1.5.0 - 折叠滑块、自适应编译与本地字典 (Collapsed Sliders, Adaptive Compiling & Local Glossary)**:
+  - **折叠式权重滑块**：重构维度卡片，采用聚焦/点击后平滑动效展开的微调权重 Slider，直观显示精度数值，剥离繁琐的 Save/Apply 按钮。
+  - **自适应 Prompt 编译器**：对编译器解耦为 `promptCompiler.ts`；自动省略默认值 `1.0` 权重，非 1.0 精准编译为 MJ 双冒号语法（`::1.5`）或 SD 括号权重（`(word:1.5)`）格式。
+  - **0-Token 静态字典**：前置拦截视觉释义请求，优先匹配本地 `presets-glossary.json`，实现 0ms 词义秒开响应并节约大模型 Token。
+  - **UI 纵向对齐优化 (v1.5.1)**：修复 Range Slider 轨道与手柄在 Safari / Webkit 等浏览器上出现的偏移和截断，完美实现呼吸感微交互。
+- [ ] **v1.6.0 - 下一代规划：跨模态语义化搜索 (Semantic Search & Vector DB)**:
+  - 引入客户端轻量级 ONNX CLIP 模型，在浏览器本地实现“以图搜图”和“以文搜图”。
+  - 推出“一键打包与云端备份”方案。
 
 ---
 

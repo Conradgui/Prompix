@@ -11,7 +11,33 @@ export interface MiningResult {
   isPreset: boolean; // 是否是预设兜底数据 (没有历史图时为 true)
   presetId?: string; // 如果是预设，记录 ID 以便调用 CSS 样式
 }
+const COMMON_NOISE_PHRASES = [
+  'in the background', 'on the left', 'on the right', 'in the foreground',
+  'a portrait of', 'close up shot of', 'a view of', 'standing on',
+  'looking at', 'sitting on', 'decorated with', 'featuring a',
+  'which is', 'standing in front of', 'looking directly at the camera'
+];
 
+export const isPureVisualTerm = (tag: string): boolean => {
+  const clean = tag.toLowerCase().trim();
+  
+  // 1. 过滤空以及停用词/过渡词
+  if (!clean || COMMON_NOISE_PHRASES.some(noise => clean === noise || clean.includes(noise))) {
+    return false;
+  }
+  
+  // 2. 过滤纯数字 (如 8k/4k 会作为名词保留，但纯数 "1", "2" 过滤)
+  if (/^\d+$/.test(clean)) {
+    return false;
+  }
+  
+  // 3. 过滤单字母/冠词等常见噪词
+  if (['a', 'an', 'the', 'and', 'or', 'of', 'in', 'on', 'with', 'at'].includes(clean)) {
+    return false;
+  }
+  
+  return true;
+};
 
 export const adjustCategory = (tag: string, defaultCat: TermCategory): TermCategory => {
   const text = tag.toLowerCase().trim();
@@ -86,12 +112,11 @@ export const mineHistory = (items: HistoryItem[]): MiningResult[] => {
     Object.entries(categories).forEach(([cat, text]) => {
       if (!text || typeof text !== 'string') return;
 
-      // 按逗号、句号、分号、换行符等断句符号分割
       const tags = text
         .split(/[,，.。;；\n]/)
         .map((t) => t.trim())
-        // 过滤空串，并剔除过长（>35字符）或过短（<2字符）的噪音句子
-        .filter((t) => t.length >= 2 && t.length <= 35);
+        // 过滤空串，并剔除过长或过短的噪音句子，以及非专业术语
+        .filter((t) => t.length >= 2 && t.length <= 35 && isPureVisualTerm(t));
 
       tags.forEach(tag => {
         // 转小写作为唯一键，防止 "Cyberpunk" 和 "cyberpunk" 被当成两个

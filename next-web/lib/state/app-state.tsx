@@ -64,12 +64,41 @@ const AppStateContext = createContext<AppStateContextValue | null>(null);
 
 const uniqueIds = (ids: string[]): string[] => Array.from(new Set(ids.filter(Boolean)));
 
-const compressImage = (file: File): Promise<string> => {
+export const calculateBestAspectRatio = (width: number, height: number): string => {
+  if (width <= 0 || height <= 0 || isNaN(width) || isNaN(height) || !isFinite(width) || !isFinite(height)) return '1:1';
+  const ratio = width / height;
+  const presets = [
+    { name: '1:1', val: 1.0 },
+    { name: '16:9', val: 16 / 9 },
+    { name: '9:16', val: 9 / 16 },
+    { name: '4:3', val: 4 / 3 },
+    { name: '3:4', val: 3 / 4 },
+    { name: '3:2', val: 3 / 2 },
+    { name: '2:3', val: 2 / 3 },
+    { name: '21:9', val: 21 / 9 },
+    { name: '9:21', val: 9 / 21 }
+  ];
+  
+  let bestPreset = presets[0];
+  let minDiff = Math.abs(ratio - bestPreset.val);
+  
+  for (const preset of presets) {
+    const diff = Math.abs(ratio - preset.val);
+    if (diff < minDiff) {
+      minDiff = diff;
+      bestPreset = preset;
+    }
+  }
+  return bestPreset.name;
+};
+
+const compressImage = (file: File): Promise<{ base64: string; aspectRatio: string }> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
 
     img.onload = () => {
+      const aspectRatio = calculateBestAspectRatio(img.width, img.height);
       const canvas = document.createElement('canvas');
       const maxWidth = 1024;
       let width = img.width;
@@ -92,7 +121,10 @@ const compressImage = (file: File): Promise<string> => {
 
       ctx.drawImage(img, 0, 0, width, height);
       URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL('image/jpeg', 0.85));
+      resolve({
+        base64: canvas.toDataURL('image/jpeg', 0.85),
+        aspectRatio,
+      });
     };
 
     img.onerror = (err) => {
@@ -320,7 +352,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const compressed = await Promise.all(files.map(compressImage));
-      const firstImage = compressed[0];
+      const firstImage = compressed[0].base64;
+      const firstAspectRatio = compressed[0].aspectRatio;
       const firstThumbnail = await createThumbnail(firstImage);
       const firstAnalysis = await analyzeImage(firstImage, settings, (meta) => {
         setActiveWorkspace((prev) => ({
@@ -351,6 +384,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         isFavorite: false,
         chatHistory: [],
         lastViewedAt: Date.now(),
+        aspectRatio: firstAspectRatio,
       };
 
       const rest = compressed.slice(1);
@@ -358,12 +392,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
       for (let i = 0; i < rest.length; i += 1) {
         try {
-          const analyzed = await analyzeImage(rest[i], settings, undefined, forceMode);
+          const restImage = rest[i].base64;
+          const restAspectRatio = rest[i].aspectRatio;
+          const analyzed = await analyzeImage(restImage, settings, undefined, forceMode);
           const restId = `${Date.now()}-${i}`;
-          const restThumbnail = await createThumbnail(rest[i]);
+          const restThumbnail = await createThumbnail(restImage);
 
           // Save full image to separate store
-          await saveHistoryImage(restId, rest[i]);
+          await saveHistoryImage(restId, restImage);
 
           const loopOppositeLang: PromptOutputLanguage = activePromptLanguage === 'zh' ? 'en' : 'zh';
           const loopOppositeAnalysis = swapAnalysisResultLanguage(analyzed);
@@ -382,6 +418,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             read: false,
             isFavorite: false,
             chatHistory: [],
+            aspectRatio: restAspectRatio,
           });
         } catch (err) {
           console.warn('Background analyze failed', err);

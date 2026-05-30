@@ -1,0 +1,82 @@
+{
+  "vaporwave": {
+    "def": "蒸汽波（Vaporwave）是一种兴起于2010年代初的音乐与视觉艺术流派。其视觉风格大量借用1980至1990年代的复古元素，包括早期电脑渲染、低保真（Lo-Fi）多媒体、明亮霓虹色（特别是粉红、粉蓝和紫色）、古典雕塑、棕榈树以及热带夕阳景致，呈现出一种梦幻、超现实且带有一丝怀旧和消费主义讽刺的独特氛围。",
+    "app": "在提示词中建议使用“Vaporwave style, pastel neon color palette, Greek statues, Windows 95 aesthetics, VHS glitch effect”进行组合。可搭配“retro-futurism”增强复古感。建议避免在强调“硬核科技（hard sci-fi）”或“自然写实（photorealistic realism）”的画面中混入此词。"
+  },
+  "cyberpunk": {
+    "def": "赛博朋克（Cyberpunk）是科幻小说的一个分支，以“高科技，低生活”为核心精神。视觉上通常表现为高耸入云的摩天大楼、密布的霓虹灯广告牌、密集的管线与电线、雨夜街道与反光积水，以及义体改造和高科技贫民窟，呈现出阴郁、潮湿且充满科技压迫感的反乌托邦未来世界。",
+    "app": "推荐搭配“neon lights, rain-slicked streets, futuristic towering skyscrapers, wires and cables, holographic advertisements, cinematic lighting, photorealistic”。若要控制对比度，建议加入负向词“bright daylight, clean streets”来稳定夜景特征。"
+  },
+  "chiaroscuro": {
+    "def": "明暗对照法（Chiaroscuro）是文艺复兴时期发展起来的一种绘画技法，通过强烈的明暗对比来塑造物体的体积感，并营造戏剧性的空间氛围。光线通常来自于单一强光源（如单侧窗光或烛光），使画面主体处于亮部，而背景和非主体区域隐没在深邃的阴影中。",
+    "app": "在提示词中用于营造戏剧性或古典神秘氛围，推荐组合：“Chiaroscuro lighting, dramatic single light source, deep shadows, dark background, oil painting technique, renaissance aesthetic”。适合肖像和静物，不建议与“flat shading”或“soft ambient lighting”同用。"
+  },
+  "bokeh": {
+    "def": "散景（Bokeh）是摄影术语，指在景深之外成像模糊的背景或前景中，光源所呈现出的柔和、圆润的光斑效果。其效果由镜头光圈叶片的形状和光学特性决定，能够有效将主体与背景分离，凸显焦内主体的清晰度，常用于人像、微距和夜景摄影。",
+    "app": "推荐在背景有灯光时使用，搭配“bokeh, soft blurry background, shallow depth of field, sharp focus on subject, f/1.4 aperture”。在室外明亮日光下效果较弱，最适合城市夜间霓虹背景或森林光斑效果。"
+  },
+  "greg rutkowski": {
+    "def": "格雷格·鲁特科夫斯基（Greg Rutkowski）是一位波兰奇幻插画家，以其古典油画般的质感、宏大的场景设计、戏剧性的光影对比（常有烟雾、火光或云雾缭绕效果）以及极具表现力的厚涂笔触而闻名。他的风格结合了传统史诗绘画的庄严感与现代游戏CG的细腻度。",
+    "app": "常用于史诗奇幻、巨龙、城堡或魔法战斗场景。推荐搭配“oil on canvas, dramatic lighting, clouds and smoke, fantasy concept art, highly detailed masterwork, by Greg Rutkowski”。注意：Midjourney v6 中对艺术家名字进行了敏感度调整，建议结合笔触描述如“bold thick brushstrokes”以复现其精髓。"
+  },
+  "wlop": {
+    "def": "WLOP（王凌）是一位著名中国数字插画家，其个人风格以极具空气感和朦胧美感的光影、半写实的精致面容、华丽的金属饰品与半透明薄纱，以及结合了精细局部与大写意背景的数字厚涂笔触为特色，画面充满仙气与浪漫主义色彩。",
+    "app": "适合绘制唯美女性肖像、仙侠或幻想公主角色。推荐组合：“WLOP style, ethereal digital painting, luminous glowing skin, translucent silk fabric, intricate metal jewelry, soft ray of light, cinematic atmosphere”。"
+  },
+  "unreal engine 5": {
+    "def": "虚幻引擎 5（Unreal Engine 5）是Epic Games开发的最新一代实时3D创作工具。其核心技术如Nanite（虚拟微多边形几何体）和Lumen（全动态全局光照）能够呈现出极其逼真、高精度的三维渲染效果，在AI提示词中常作为“极致画质、复杂几何结构与写实全局光照”的代名词。",
+    "app": "在3D渲染、未来建筑、复杂机械或游戏角色设计中推荐使用。搭配“Unreal Engine 5 render, global illumination, Ray Tracing, sub-surface scattering, octane render, 8k resolution”。请避免与“2D vector art”或“watercolor illustration”等二维平面风格混用。"
+  },
+  "octane render": {
+    "def": "Octane Render 是一款世界上最快、首个无偏差、物理正确的GPU渲染引擎。它以渲染出照片级的材质质感、逼真的景深散景、复杂的次表面散射（如玉石、皮肤的通透感）以及高质量的体积光效果而著称，在3D创作界广受欢迎。",
+    "app": "用于追求极致三维写实度和高级材质质感的提示词。推荐组合：“Octane render, photorealistic 3D render, subsurface scattering material, volumetric lighting, ray tracing, sharp focus”。不适合平面插画或线稿手绘风格。"
+  },
+  "ray tracing": {
+    "def": "光线追踪（Ray Tracing）是一种三维计算机图形学的渲染算法。通过模拟光线在虚拟场景中的物理行为（反射、折射、阴影和全局光照），能够生成极度逼真的镜面反射、水面反光以及柔和半影，是现代高质量视觉渲染的关键技术。",
+    "app": "常用于金属、水体、玻璃杯以及科幻夜景等有大量反光材质的场景。推荐搭配“Ray Tracing, hyper-realistic reflections, global illumination, glassy surface, shiny metal”。"
+  },
+  "volumetric dust": {
+    "def": "体积尘埃（Volumetric Dust）是指悬浮在半空中的细微尘埃颗粒在强光源（如丁达尔效应、耶稣光）照射下，反射出肉眼可见的光路与颗粒感的视觉效果。它能极大地增强画面的空气感、厚重感与时间沉淀感，营造出古老、静谧或戏剧性的氛围。",
+    "app": "适合用于废墟、古老图书馆、森林深处或窗边倾泻的光束中。推荐组合：“volumetric dust particles floating in air, sunbeams, god rays, Tyndall effect, cinematic moody atmosphere”。"
+  },
+  "hasselblad shot": {
+    "def": "哈苏拍摄（Hasselblad Shot）指使用哈苏中画幅相机拍摄出的摄影效果。其视觉特征是极高的画面解析度、极其细腻的色彩过渡与真实的色彩还原、平滑的低照度噪点控制，以及中画幅镜头特有的立体空间透视与高贵冷艳的画幅质感。",
+    "app": "用于追求极致逼真摄影画质的场景。推荐搭配“shot on Hasselblad camera, 80mm lens, portrait photography, detailed skin texture, raw photo, natural color grading”。建议在负向词中加入“cgi, 3d render, illustration”以强制生成纯照片。"
+  },
+  "depth of field": {
+    "def": "景深（Depth of Field, DoF）是指在相机镜头前能成像清晰的空间前后距离范围。浅景深（Shallow DoF）会使对焦主体极其锐利，而背景和前景呈柔和模糊状态，是突出人物、动物或花卉等主体的经典摄影表现手法。",
+    "app": "推荐搭配“shallow depth of field, blurry background, sharp focus on the center, close-up shot, photographic quality”。"
+  },
+  "double exposure": {
+    "def": "双重曝光（Double Exposure）是一种摄影技术，将两张不同的照片叠加合并在同一个画幅内，使两者相互渗透，创造出超现实、双重语义叠加的视觉效果。常见组合是将人像轮廓与森林、城市建筑、星空等自然景观融合。",
+    "app": "用于创意插画或超现实艺术创作。推荐配合“Double exposure photography, silhouette of a person filled with forest and stars, overlay effect, surrealism, double exposure effect, clean background”进行编写。"
+  },
+  "cinematic lighting": {
+    "def": "电影级光照（Cinematic Lighting）是模仿电影胶片画面中经过精心设计和布置的照明效果。它通常使用高对比度的三点光源（主光、侧光、轮廓光），强调光影的叙事性与角色情绪表达，色彩饱和度偏低，冷暖光对比强烈，充满胶片质感。",
+    "app": "适用于几乎所有写实、科幻或情绪化的生图场景。推荐组合：“cinematic lighting, warm key light, cool rim light, dramatic shadows, movie still, cinematic color grading, highly detailed”。"
+  },
+  "minimalism": {
+    "def": "极简主义（Minimalism）是一种以“少即是多”为核心精髓的艺术流派。在视觉设计上表现为大量的留白（Negative Space）、极少的线条与基本几何形状、和谐受限的色彩搭配以及极其纯粹的主体呈现，营造出宁静、高端、深邃且不失力度的现代美感。",
+    "app": "用于干净、现代或充满禅意的设计。推荐搭配“minimalism style, simple shapes, negative space, neutral color palette, clean background, sharp clean lines”。不建议混入大量复杂繁琐的细节描述词。"
+  },
+  "surrealism": {
+    "def": "超现实主义（Surrealism）是起源于法国的艺术流派，致力于展现潜意识、梦境与幻觉世界。其视觉特征是将现实中互不相干的事物异化重组（如融化的钟表、长着树枝的人、漂浮在空中的水母），颠覆常规物理定律，充满神秘与荒诞色彩。",
+    "app": "用于天马行空的创意创作。推荐搭配“surrealism art style, dreamlike scene, illogical combination, Salvador Dali style, floating islands, ethereal lighting”。"
+  },
+  "impressionism": {
+    "def": "印象主义（Impressionism）是19世纪末产生于法国的画派。强调画家对光线和色彩的即时瞬态“印象”，不拘泥于精细的轮廓，而是采用小而短的碎碎笔触、直接铺设互补色以表现冷暖光影的变化，画面充满跃动感与空气感。",
+    "app": "用于手绘油画风格。推荐组合：“Impressionism style, oil painting on canvas, visible broken brushstrokes, natural sunlight and shadow, vibrant colors, by Claude Monet”。"
+  },
+  "gothic style": {
+    "def": "哥特风格（Gothic Style）是一种起源于中世纪晚期的艺术与建筑风格，后演变为一种神秘、阴郁且高贵的文化符号。视觉特征是尖拱高耸的教堂结构、繁复细密的浮雕饰品、阴森暗黑的配色组合（以黑、暗红、深紫为主）、荆棘与玫瑰纹饰，散发着凄美与神秘的美感。",
+    "app": "常用于暗黑奇幻、吸血鬼古堡或中世纪废墟。推荐搭配“gothic style, dark moody atmosphere, gothic cathedral architecture, gothic patterns, shadows, crimson and velvet black colors”。"
+  },
+  "ukiyo-e": {
+    "def": "浮世绘（Ukiyo-e）是日本江户时代兴起的木版画艺术类型。其视觉特征是清晰的粗黑描线、大面积且平整的纯色块填充（少有明暗光影渐变）、装饰性极强的海浪、云雾和衣纹图案，色彩温润典雅，充满东方扁平化美学韵味。",
+    "app": "用于东方版画风格创作。推荐搭配“Japanese ukiyo-e print, woodblock print, bold outline drawing, flat colors, decorative waves, traditional Japanese art style”。建议在负向词中加入“3d render, photorealistic, shadow, gradient”以维持版画的扁平属性。"
+  },
+  "steampunk": {
+    "def": "蒸汽朋克（Steampunk）是一种科幻审美流派，设想了一个以19世纪维多利亚时代蒸汽驱动技术为核心的虚构未来。其视觉标志包括齿轮、发条轴承、黄铜管道、蒸汽活塞、皮质面具护目镜、飞艇以及复古英伦绅士淑女服饰，结合了机械感与古典英伦风情。",
+    "app": "用于工业复古幻想场景。推荐搭配“steampunk style, brass and copper gears, mechanical pipes, steam engine, victorian fashion, goggles, cinematic lighting”。"
+  }
+}

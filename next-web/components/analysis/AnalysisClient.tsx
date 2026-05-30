@@ -16,6 +16,7 @@ import { applyPromptOutputLanguage } from '@/lib/utils/promptOutput';
 import { getHistoryAnalysisByLanguage, resolveHistoryPromptLanguage } from '@/lib/utils/analysisLanguage';
 import { applyOptimizationMemories, resolveActiveMemoryIds } from '@/lib/utils/optimizationMemory';
 import { getMissingDimensions } from '@/lib/utils/analysisQuality';
+import { compileFullPrompt } from '@/lib/utils/promptCompiler';
 
 
 const dimensions: DimensionKey[] = [
@@ -102,6 +103,22 @@ export default function AnalysisClient() {
   const [copiedDimension, setCopiedDimension] = useState<DimensionKey | 'all' | null>(null);
   const [showCopyDropdown, setShowCopyDropdown] = useState(false);
   const [mjParams, setMjParams] = useState(' --ar 16:9 --v 6.0');
+
+  useEffect(() => {
+    if (currentHistoryItem?.aspectRatio) {
+      setMjParams(` --ar ${currentHistoryItem.aspectRatio} --v 6.0`);
+    }
+  }, [currentHistoryItem?.id, currentHistoryItem?.aspectRatio]);
+
+  const [activeSliderKey, setActiveSliderKey] = useState<DimensionKey | null>(null);
+  const [dimensionWeights, setDimensionWeights] = useState<Record<DimensionKey, number>>({
+    subject: 1.0,
+    environment: 1.0,
+    composition: 1.0,
+    lighting: 1.0,
+    mood: 1.0,
+    style: 1.0,
+  });
 
   const chatHistory = currentHistoryItem?.chatHistory || [];
   const locale = resolveUiLocale(settings.systemLanguage);
@@ -331,45 +348,16 @@ export default function AnalysisClient() {
       return;
     }
 
-    let payload = '';
-
-    if (format === 'structured') {
-      payload = enabledKeys
-        .map((key) => {
-          const label = getDimensionLabel(key, locale);
-          const seg = effectiveAnalysis.structuredPrompts[key];
-          return `[${label}]\n${seg.original}`;
-        })
-        .join('\n\n');
-    } else if (format === 'mj') {
-      const parts = enabledKeys.map((key) => {
-        const seg = effectiveAnalysis.structuredPrompts[key];
-        return getEnglishText(seg);
-      }).filter(Boolean);
-      payload = parts.join(', ') + mjParams;
-    } else if (format === 'sd') {
-      const parts = enabledKeys.map((key) => {
-        const seg = effectiveAnalysis.structuredPrompts[key];
-        return getEnglishText(seg);
-      }).filter(Boolean);
-      const positive = parts.join(', ');
-      const negative = getDynamicNegativePrompt(effectiveAnalysis);
-      payload = `【Positive Prompt】\n${positive}\n\n【Negative Prompt】\n${negative}`;
-    } else if (format === 'dalle') {
-      const parts = enabledKeys.map((key) => {
-        const seg = effectiveAnalysis.structuredPrompts[key];
-        return getEnglishText(seg);
-      }).filter(Boolean);
-      payload = parts.join('. ');
-    } else if (format === 'plain') {
-      payload = enabledKeys
-        .map((key) => {
-          const seg = effectiveAnalysis.structuredPrompts[key];
-          return seg.original;
-        })
-        .filter(Boolean)
-        .join('\n\n');
-    }
+    const payload = compileFullPrompt(
+      enabledKeys,
+      effectiveAnalysis.structuredPrompts,
+      dimensionWeights,
+      format,
+      mjParams,
+      getDynamicNegativePrompt(effectiveAnalysis),
+      getEnglishText,
+      (key) => getDimensionLabel(key, locale)
+    );
 
     const ok = await copyToClipboard(payload);
     if (ok) {
@@ -708,15 +696,31 @@ export default function AnalysisClient() {
                   const hasContent = Boolean(seg.original?.trim());
                   const autoWaiting = !hasContent && (isRefreshing || Boolean(autoFillStatus?.running));
                   const autoFailed = !hasContent && Boolean(autoFillStatus?.failed?.includes(key));
+                  const isWeightSliderOpen = activeSliderKey === key;
                   return (
-                    <Surface key={key} interactive className="p-4 flex flex-col justify-between rounded-xl bg-white/30 backdrop-blur-md border border-white/10 hover:shadow-md transition duration-300">
+                    <Surface
+                      key={key}
+                      interactive
+                      onClick={() => setActiveSliderKey(isWeightSliderOpen ? null : key)}
+                      className="p-4 flex flex-col justify-between rounded-xl bg-white/30 backdrop-blur-md border border-white/10 hover:shadow-md transition duration-300 cursor-pointer"
+                    >
                       <div>
                         <div className="mb-2.5 flex items-center justify-between">
-                          <h2 className="text-xs font-bold tracking-wider uppercase text-ag-muted">{label}</h2>
+                          <div className="flex items-center gap-1.5">
+                            <h2 className="text-xs font-bold tracking-wider uppercase text-ag-muted">{label}</h2>
+                            {dimensionWeights[key] !== 1.0 && (
+                              <span className="bg-ag-accent/10 border border-ag-accent/20 text-ag-accent text-[9px] font-bold px-1 py-0.5 rounded">
+                                {dimensionWeights[key].toFixed(1)}x
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-1.5">
                             {hasContent && (
                               <button
-                                onClick={() => void handleCopyDimension(key)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleCopyDimension(key);
+                                }}
                                 className={`rounded px-1.5 py-0.5 text-[10px] transition-all duration-200 ${
                                   copiedDimension === key
                                     ? 'border border-green-600 bg-green-500/10 text-green-600 dark:text-green-400 font-medium'
@@ -727,7 +731,10 @@ export default function AnalysisClient() {
                               </button>
                             )}
                             <button
-                              onClick={() => void handleRegenerate(key)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleRegenerate(key);
+                              }}
                               disabled={isRefreshing}
                               className="rounded border border-ag-border px-1.5 py-0.5 text-[10px] text-ag-muted hover:border-ag-accent/40 hover:text-ag-accent transition-all duration-200 disabled:opacity-50"
                             >
@@ -743,6 +750,36 @@ export default function AnalysisClient() {
                           </p>
                         )}
                       </div>
+
+                      <AnimatePresence>
+                        {isWeightSliderOpen && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.18 }}
+                            className="overflow-hidden mt-3 pt-3 border-t border-ag-border/20 flex flex-col space-y-1.5"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="flex justify-between items-center text-[10px]">
+                              <span className="text-ag-muted font-medium">{locale === 'zh' ? '微调权重' : 'Prompt Weight'}</span>
+                              <span className="font-bold text-ag-accent">{dimensionWeights[key].toFixed(1)}x</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0.5"
+                              max="2.0"
+                              step="0.1"
+                              value={dimensionWeights[key]}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value);
+                                setDimensionWeights((prev) => ({ ...prev, [key]: val }));
+                              }}
+                              className="w-full ag-range-slider accent-ag-accent cursor-pointer"
+                            />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </Surface>
                   );
                 })}

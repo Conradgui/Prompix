@@ -4,12 +4,13 @@ interface SurfaceProps {
   children: React.ReactNode;
   className?: string;
   interactive?: boolean;
+  onClick?: React.MouseEventHandler<HTMLDivElement>;
 }
 
-export default function Surface({ children, className = '', interactive = false }: SurfaceProps) {
+export default function Surface({ children, className = '', interactive = false, onClick }: SurfaceProps) {
   if (!interactive) {
     return (
-      <div className={`rounded-ag border border-ag-border bg-ag-surface backdrop-blur-xl shadow-ag transition-all duration-300 ${className}`}>
+      <div onClick={onClick} className={`rounded-ag border border-ag-border bg-ag-surface backdrop-blur-xl shadow-ag transition-all duration-300 ${className}`}>
         {children}
       </div>
     );
@@ -17,6 +18,7 @@ export default function Surface({ children, className = '', interactive = false 
 
   return (
     <motion.div
+      onClick={onClick}
       whileHover={{ y: -4, scale: 1.008, boxShadow: '0 20px 48px -12px var(--ag-shadow)' }}
       whileTap={{ y: -1, scale: 0.995 }}
       transition={{ type: 'spring', stiffness: 260, damping: 20 }}
